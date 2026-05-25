@@ -1,5 +1,5 @@
 var EXAM_DATA={36:EXAM_DATA_36,35:EXAM_DATA_35};
-var state={examYear:36,subjectIdx:0,filter:'all',search:'',currentQ:0,answers:{},bookmarks:{},resolved:{},adminMode:false,editTarget:null};
+var state={examYear:36,subjectIdx:0,filter:'all',search:'',currentQ:0,answers:{},bookmarks:{},resolved:{}};
 function saveS(){try{localStorage.setItem('gh',JSON.stringify({a:state.answers,b:state.bookmarks,r:state.resolved}));}catch(e){}}
 function loadS(){try{var s=JSON.parse(localStorage.getItem('gh')||'{}');state.answers=s.a||{};state.bookmarks=s.b||{};state.resolved=s.r||{};}catch(e){}}
 loadS();
@@ -49,11 +49,6 @@ function renderSidebar(){
   h+='<div class="sidebar-item" onclick="showStats()">📊 내 통계</div>';
   h+='<div class="sidebar-item" onclick="showPdf()">📥 PDF 다운로드</div>';
   h+='</div>';
-  if(state.adminMode){
-    h+='<hr class="sidebar-divider"><div class="sidebar-section">';
-    h+='<div class="sidebar-item" onclick="copyDataJson()" style="color:#a16207;font-weight:700">📋 데이터 JSON 복사</div>';
-    h+='</div>';
-  }
   document.getElementById('sidebar').innerHTML=h;
 }
 
@@ -93,7 +88,6 @@ function renderMain(){
   h+='<div class="q-card"><div class="q-header"><span class="q-num">Q'+q.number+'</span><div class="q-actions">';
   if(state.filter==='wrong'&&isAns)h+='<button class="btn-resolve" onclick="resolve(\''+key+'\')">✓ 이해했어요</button>';
   h+='<button class="btn-icon'+(isBm?' bookmarked':'')+'" onclick="toggleBm(\''+key+'\')">'+(isBm?'★':'☆')+'</button>';
-  if(state.adminMode)h+='<button class="btn-edit-q" onclick="openEdit('+state.subjectIdx+','+q.number+')">✏️ 수정</button>';
   h+='</div></div><div class="q-body"><div class="q-text">'+highlight(q.question)+'</div>';
   if(q.condition)h+='<div class="q-condition">'+esc(q.condition)+'</div>';
   h+='<div class="choices">';
@@ -125,7 +119,6 @@ function nextQ(){var qs=filteredQ();if(state.currentQ<qs.length-1){state.current
 function pick(key,c,ans){if(state.answers[key])return;state.answers[key]=c;saveS();renderMain();renderSidebar();}
 function toggleBm(key){state.bookmarks[key]=!state.bookmarks[key];saveS();renderMain();renderSidebar();}
 function resolve(key){state.resolved[key]=true;saveS();var qs=filteredQ();if(state.currentQ>=qs.length)state.currentQ=Math.max(0,qs.length-1);renderMain();renderSidebar();}
-function toggleAdmin(){state.adminMode=!state.adminMode;renderMain();alert(state.adminMode?'관리자 모드 ON':'관리자 모드 OFF');}
 function showWrong(){
   var d=curData();
   for(var i=0;i<d.length;i++){
@@ -144,73 +137,6 @@ function showStats(){
   });
   alert(msg);
 }
-function openEdit(si,qn){
-  var s=curData()[si];var q=null;
-  for(var i=0;i<s.questions.length;i++){if(s.questions[i].number===qn){q=s.questions[i];break;}}
-  if(!q)return;
-  state.editTarget={si:si,qn:qn};
-  document.getElementById('eNum').value=s.subject+' Q'+qn;
-  document.getElementById('eQ').value=q.question;
-  document.getElementById('eCond').value=q.condition||'';
-  document.getElementById('eAns').value=q.answer;
-  document.getElementById('eExp').value=q.explanation;
-  var ch='';
-  q.choices.forEach(function(c,i){ch+='<div class="fg"><label>'+c.substring(0,2)+'</label><textarea id="ec'+i+'" rows="2">'+c.substring(2).trim()+'</textarea></div>';});
-  document.getElementById('eChoices').innerHTML=ch;
-  document.getElementById('editModal').classList.add('show');
-}
-function closeEdit(){document.getElementById('editModal').classList.remove('show');}
-function saveEdit(){
-  var t=state.editTarget;var s=curData()[t.si];var q=null;
-  for(var i=0;i<s.questions.length;i++){if(s.questions[i].number===t.qn){q=s.questions[i];break;}}
-  q.question=document.getElementById('eQ').value;
-  q.condition=document.getElementById('eCond').value||null;
-  q.answer=parseInt(document.getElementById('eAns').value);
-  q.explanation=document.getElementById('eExp').value;
-  var sym=['①','②','③','④','⑤'];
-  q.choices=sym.map(function(s,i){return s+' '+document.getElementById('ec'+i).value;});
-  closeEdit();renderMain();alert('저장됐어요!');
-}
-function copyDataJson(){
-  var data=curData();
-  var yr=state.examYear;
-  var out='const EXAM_DATA_'+yr+' = [\n';
-  data.forEach(function(s,si){
-    out+='  {\n';
-    out+='    subject: '+JSON.stringify(s.subject)+',\n';
-    out+='    session: '+s.session+',\n';
-    out+='    exam: '+JSON.stringify(s.exam)+',\n';
-    out+='    year: '+s.year+',\n';
-    out+='    questions: [\n';
-    s.questions.forEach(function(q,qi){
-      out+='      {\n';
-      out+='        number: '+q.number+',\n';
-      out+='        question: '+JSON.stringify(q.question)+',\n';
-      out+='        condition: '+(q.condition?JSON.stringify(q.condition):'null')+',\n';
-      out+='        choices: [\n';
-      q.choices.forEach(function(c){out+='          '+JSON.stringify(c)+',\n';});
-      out+='        ],\n';
-      out+='        answer: '+q.answer+',\n';
-      out+='        explanation: '+JSON.stringify(q.explanation||'')+',\n';
-      out+='        hasImage: '+(q.hasImage?'true':'false')+'\n';
-      out+='      }'+(qi<s.questions.length-1?',':'')+'\n';
-    });
-    out+='    ]\n';
-    out+='  }'+(si<data.length-1?',':'')+'\n';
-  });
-  out+='];';
-  if(navigator.clipboard){
-    navigator.clipboard.writeText(out).then(function(){
-      alert('✅ '+yr+'회 전체 데이터가 클립보드에 복사됐어요!\nexam_data_'+yr+'.js 파일에 붙여넣기 하세요.');
-    }).catch(function(){
-      var ta=document.createElement('textarea');ta.value=out;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);
-      alert('✅ 복사됐어요! exam_data_'+yr+'.js에 붙여넣기 하세요.');
-    });
-  } else {
-    var ta=document.createElement('textarea');ta.value=out;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);
-    alert('✅ 복사됐어요! exam_data_'+yr+'.js에 붙여넣기 하세요.');
-  }
-}
 function showPdf(){
   var pdfs=[
     {label:'제36회 기출문제+정답 (2025)', n:'36'},
@@ -219,4 +145,33 @@ function showPdf(){
     {label:'제33회 기출문제+정답 (2022)', n:'33'},
     {label:'제32회 기출문제+정답 (2021)', n:'32'},
     {label:'제31회 기출문제+정답 (2020)', n:'31'},
-    {label:'제30회 기출문제+정�
+    {label:'제30회 기출문제+정답 (2019)', n:'30'},
+    {label:'제29회 기출문제+정답 (2018)', n:'29'},
+    {label:'제28회 기출문제+정답 (2017)', n:'28'},
+    {label:'제27회 기출문제+정답 (2016)', n:'27'},
+    {label:'제26회 기출문제+정답 (2015)', n:'26'},
+    {label:'제25회 기출문제+정답 (2014)', n:'25'},
+    {label:'제24회 기출문제+정답 (2013)', n:'24'},
+    {label:'제23회 기출문제+정답 (2012)', n:'23'},
+    {label:'제22회 기출문제+정답 (2011)', n:'22'},
+    {label:'제21회 기출문제+정답 (2010)', n:'21'},
+    {label:'제20회 기출문제+정답 (2009)', n:'20'},
+    {label:'제19회 기출문제+정답 (2008)', n:'19'},
+    {label:'제18회 기출문제+정답 (2007)', n:'18'},
+    {label:'제17회 기출문제+정답 (2006)', n:'17'},
+    {label:'제16회 기출문제+정답 (2005)', n:'16'},
+    {label:'제15회 기출문제+정답 (2004)', n:'15'},
+  ];
+  var h='<div style="padding:20px"><h2 style="margin-bottom:16px;font-size:18px;font-weight:800">📥 기출문제 PDF 다운로드</h2>';
+  pdfs.forEach(function(p){
+    var file='공인중개사_'+p.n+'회.pdf';
+    h+='<a href="'+file+'" download style="display:flex;align-items:center;gap:10px;padding:12px 16px;margin-bottom:8px;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;text-decoration:none;color:#1e293b;font-size:14px;font-weight:600">';
+    h+='<span style="font-size:20px">📄</span>'+p.label+'<span style="margin-left:auto;color:#2563eb;font-size:12px">다운로드</span></a>';
+  });
+  h+='<p style="font-size:12px;color:#94a3b8;margin-top:12px">※ 파일명 형식: 공인중개사_N회.pdf</p>';
+  h+='<button onclick="renderMain()" style="margin-top:12px;padding:8px 20px;background:#f1f5f9;border:none;border-radius:8px;font-weight:700;cursor:pointer">← 돌아가기</button></div>';
+  document.getElementById('main').innerHTML=h;
+}
+renderSidebar();
+renderMain();
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          
