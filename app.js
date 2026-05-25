@@ -1,0 +1,140 @@
+var state={subjectIdx:0,filter:'all',currentQ:0,answers:{},bookmarks:{},resolved:{},adminMode:false,editTarget:null};
+function saveS(){try{localStorage.setItem('gh',JSON.stringify({a:state.answers,b:state.bookmarks,r:state.resolved}));}catch(e){}}
+function loadS(){try{var s=JSON.parse(localStorage.getItem('gh')||'{}');state.answers=s.a||{};state.bookmarks=s.b||{};state.resolved=s.r||{};}catch(e){}}
+loadS();
+function subj(){return EXAM_DATA_36[state.subjectIdx];}
+function qk(q){return state.subjectIdx+'_'+q.number;}
+function filteredQ(){
+  var qs=subj().questions;
+  if(state.filter==='wrong')return qs.filter(function(q){var a=state.answers[qk(q)];return a&&a!==q.answer&&!state.resolved[qk(q)];});
+  if(state.filter==='bm')return qs.filter(function(q){return state.bookmarks[qk(q)];});
+  return qs;
+}
+function wrongCount(){
+  var w=0;
+  EXAM_DATA_36.forEach(function(s,si){s.questions.forEach(function(q){var k=si+'_'+q.number;if(state.answers[k]&&state.answers[k]!==q.answer&&!state.resolved[k])w++;});});
+  return w;
+}
+function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');}
+
+function renderSidebar(){
+  var w=wrongCount();
+  var h='<div class="sidebar-section"><span class="sidebar-label">회차</span><div class="round-tabs">';
+  h+='<button class="round-tab active">36회</button>';
+  h+='<button class="round-tab disabled" onclick="alert(\'35회 준비중!\')">35회</button>';
+  h+='<button class="round-tab disabled" onclick="alert(\'34회 준비중!\')">34회</button>';
+  h+='<button class="round-tab disabled" onclick="alert(\'33회 준비중!\')">33회</button>';
+  h+='</div></div>';
+  h+='<div class="sidebar-section"><span class="sidebar-label">1교시</span>';
+  EXAM_DATA_36.forEach(function(s,i){if(s.session!==1)return;h+='<div class="sidebar-item'+(state.subjectIdx===i?' active':'')+'" onclick="selSubj('+i+')">'+s.subject+'</div>';});
+  h+='</div><div class="sidebar-section"><span class="sidebar-label">2교시</span>';
+  EXAM_DATA_36.forEach(function(s,i){if(s.session!==2)return;h+='<div class="sidebar-item'+(state.subjectIdx===i?' active':'')+'" onclick="selSubj('+i+')">'+s.subject+'</div>';});
+  h+='</div><hr class="sidebar-divider"><div class="sidebar-section">';
+  h+='<div class="sidebar-item" onclick="showWrong()">📕 오답노트'+(w>0?'<span class="sidebar-badge">'+w+'</span>':'')+'</div>';
+  h+='<div class="sidebar-item" onclick="showStats()">📊 내 통계</div>';
+  h+='</div>';
+  document.getElementById('sidebar').innerHTML=h;
+}
+
+function renderMain(){
+  var s=subj();var qs=filteredQ();
+  if(state.currentQ>=qs.length)state.currentQ=0;
+  var done=s.questions.filter(function(q){return state.answers[qk(q)];}).length;
+  var cor=s.questions.filter(function(q){return state.answers[qk(q)]===q.answer;}).length;
+  var pct=s.questions.length?Math.round(done/s.questions.length*100):0;
+  var h='<div class="page-header"><h1>'+s.subject+'</h1><p>'+s.exam+' ('+s.year+') &middot; '+s.questions.length+'문제 &middot; '+s.session+'교시</p></div>';
+  h+='<div class="filter-bar">';
+  h+='<button class="filter-btn'+(state.filter==='all'?' active':'')+'" onclick="setFilter(\'all\')">전체 '+s.questions.length+'문제</button>';
+  h+='<button class="filter-btn'+(state.filter==='wrong'?' active':'')+'" onclick="setFilter(\'wrong\')">오답만</button>';
+  h+='<button class="filter-btn'+(state.filter==='bm'?' active':'')+'" onclick="setFilter(\'bm\')">★ 북마크</button>';
+  h+='</div>';
+  h+='<div class="progress-card"><div class="progress-info"><h3>학습 진도</h3>';
+  h+='<div class="pbar-wrap"><div class="pbar-fill" style="width:'+pct+'%"></div></div>';
+  h+='<div class="progress-text">'+done+'/'+s.questions.length+'문제 완료 &middot; 정답률 '+(done?Math.round(cor/done*100):0)+'%</div></div>';
+  h+='<div class="progress-stats"><div class="stat"><div class="stat-num">'+cor+'</div><div class="stat-label">정답</div></div>';
+  h+='<div class="stat"><div class="stat-num">'+(done-cor)+'</div><div class="stat-label">오답</div></div>';
+  h+='<div class="stat"><div class="stat-num">'+(s.questions.length-done)+'</div><div class="stat-label">미풀이</div></div></div></div>';
+  if(!qs.length){
+    h+='<div class="empty"><div style="font-size:48px">🎉</div><p>'+(state.filter==='wrong'?'오답이 없어요!':'해당 문제가 없어요!')+'</p></div>';
+    document.getElementById('main').innerHTML=h;return;
+  }
+  var q=qs[state.currentQ];var key=qk(q);
+  var chosen=state.answers[key];var isAns=!!chosen;var isBm=!!state.bookmarks[key];
+  var half=Math.ceil(qs.length/2);var r1='',r2='';
+  qs.forEach(function(qq,i){
+    var k=qk(qq);var a=state.answers[k];
+    var cls='qn'+(i===state.currentQ?' current':a&&a===qq.answer?' answered':a?' wrong-q':'');
+    var btn='<button class="'+cls+'" onclick="goTo('+i+')">'+qq.number+'</button>';
+    if(i<half)r1+=btn;else r2+=btn;
+  });
+  h+='<div class="q-card"><div class="q-header"><span class="q-num">Q'+q.number+'</span><div class="q-actions">';
+  if(state.filter==='wrong'&&isAns)h+='<button class="btn-resolve" onclick="resolve(\''+key+'\')">✓ 이해했어요</button>';
+  h+='<button class="btn-icon'+(isBm?' bookmarked':'')+'" onclick="toggleBm(\''+key+'\')">'+(isBm?'★':'☆')+'</button>';
+  if(state.adminMode)h+='<button class="btn-edit-q" onclick="openEdit('+state.subjectIdx+','+q.number+')">✏️ 수정</button>';
+  h+='</div></div><div class="q-body"><div class="q-text">'+esc(q.question)+'</div>';
+  if(q.condition)h+='<div class="q-condition">'+esc(q.condition)+'</div>';
+  h+='<div class="choices">';
+  q.choices.forEach(function(c,i){
+    var idx=i+1;var cls='choice'+(isAns?(idx===q.answer?' correct':idx===chosen?' wrong':''):'');
+    h+='<button class="'+cls+'" onclick="pick(\''+key+'\','+idx+','+q.answer+')"'+(isAns?' disabled':'')+'>'+esc(c)+'</button>';
+  });
+  h+='</div><div class="explanation'+(isAns?' show':'')+'"><div class="explanation-title">💡 해설</div>'+esc(q.explanation)+'</div>';
+  h+='</div><div class="q-footer"><div class="q-nums"><div class="q-nums-row">'+r1+'</div><div class="q-nums-row">'+r2+'</div></div>';
+  h+='<button class="btn-next" onclick="nextQ()">다음 →</button></div></div>';
+  document.getElementById('main').innerHTML=h;
+}
+
+function selSubj(i){state.subjectIdx=i;state.currentQ=0;state.filter='all';renderSidebar();renderMain();}
+function setFilter(f){state.filter=f;state.currentQ=0;renderMain();}
+function goTo(i){state.currentQ=i;renderMain();}
+function nextQ(){var qs=filteredQ();if(state.currentQ<qs.length-1){state.currentQ++;renderMain();}else alert('마지막 문제예요!');}
+function pick(key,c,ans){if(state.answers[key])return;state.answers[key]=c;saveS();renderMain();renderSidebar();}
+function toggleBm(key){state.bookmarks[key]=!state.bookmarks[key];saveS();renderMain();renderSidebar();}
+function resolve(key){state.resolved[key]=true;saveS();var qs=filteredQ();if(state.currentQ>=qs.length)state.currentQ=Math.max(0,qs.length-1);renderMain();renderSidebar();}
+function toggleAdmin(){state.adminMode=!state.adminMode;renderMain();alert(state.adminMode?'관리자 모드 ON':'관리자 모드 OFF');}
+function showWrong(){
+  for(var i=0;i<EXAM_DATA_36.length;i++){
+    if(EXAM_DATA_36[i].questions.some(function(q){var k=i+'_'+q.number;return state.answers[k]&&state.answers[k]!==q.answer&&!state.resolved[k];})){
+      state.subjectIdx=i;state.filter='wrong';state.currentQ=0;renderSidebar();renderMain();return;
+    }
+  }
+  alert('오답이 없어요! 🎉');
+}
+function showStats(){
+  var msg='📊 내 통계\n\n';
+  EXAM_DATA_36.forEach(function(s,i){
+    var d=s.questions.filter(function(q){return state.answers[i+'_'+q.number];}).length;
+    var c=s.questions.filter(function(q){return state.answers[i+'_'+q.number]===q.answer;}).length;
+    msg+=s.subject+'\n  풀기: '+d+'/'+s.questions.length+' · 정답률: '+(d?Math.round(c/d*100):0)+'%\n\n';
+  });
+  alert(msg);
+}
+function openEdit(si,qn){
+  var s=EXAM_DATA_36[si];var q=null;
+  for(var i=0;i<s.questions.length;i++){if(s.questions[i].number===qn){q=s.questions[i];break;}}
+  if(!q)return;
+  state.editTarget={si:si,qn:qn};
+  document.getElementById('eNum').value=s.subject+' Q'+qn;
+  document.getElementById('eQ').value=q.question;
+  document.getElementById('eCond').value=q.condition||'';
+  document.getElementById('eAns').value=q.answer;
+  document.getElementById('eExp').value=q.explanation;
+  var ch='';
+  q.choices.forEach(function(c,i){ch+='<div class="fg"><label>'+c.substring(0,2)+'</label><textarea id="ec'+i+'" rows="2">'+c.substring(2).trim()+'</textarea></div>';});
+  document.getElementById('eChoices').innerHTML=ch;
+  document.getElementById('editModal').classList.add('show');
+}
+function closeEdit(){document.getElementById('editModal').classList.remove('show');}
+function saveEdit(){
+  var t=state.editTarget;var s=EXAM_DATA_36[t.si];var q=null;
+  for(var i=0;i<s.questions.length;i++){if(s.questions[i].number===t.qn){q=s.questions[i];break;}}
+  q.question=document.getElementById('eQ').value;
+  q.condition=document.getElementById('eCond').value||null;
+  q.answer=parseInt(document.getElementById('eAns').value);
+  q.explanation=document.getElementById('eExp').value;
+  var sym=['①','②','③','④','⑤'];
+  q.choices=sym.map(function(s,i){return s+' '+document.getElementById('ec'+i).value;});
+  closeEdit();renderMain();alert('저장됐어요!');
+}
+renderSidebar();
+renderMain();

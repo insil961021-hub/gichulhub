@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>소개 및 문의 - 기출허브</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Noto Sans KR',sans-serif;background:#f4f6f9;color:#222;font-size:15px}
+nav{background:#fff;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;padding:0 20px;height:56px}
+.logo{font-size:20px;font-weight:800;color:#2563eb;text-decoration:none}
+.wrap{max-width:800px;margin:40px auto;padding:0 20px 60px}
+.hero{background:linear-gradient(135deg,#2563eb,#60a5fa);border-radius:16px;padding:48px 40px;color:#fff;margin-bottom:24px;text-align:center}
+.hero h1{font-size:32px;font-weight:800;margin-bottom:12px}
+.hero p{font-size:16px;opacity:.9;line-height:1.6}
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px}
+.card{background:#fff;border-radius:14px;padding:28px;border:1px solid #e2e8f0}
+.card-icon{font-size:32px;margin-bottom:12px}
+.card h2{font-size:16px;font-weight:700;color:#1e293b;margin-bottom:8px}
+.card p{font-size:14px;color:#475569;line-height:1.7}
+.contact-card{background:#fff;border-radius:14px;padding:32px;border:1px solid #e2e8f0;margin-bottom:24px}
+.contact-card h2{font-size:18px;font-weight:700;color:#1e293b;margin-bottom:20px}
+.contact-item{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid #f1f5f9}
+.contact-item:last-child{border-bottom:none}
+.contact-icon{font-size:20px;width:36px;text-align:center}
+.contact-info strong{font-size:13px;font-weight:700;color:#64748b;display:block}
+.contact-info span{font-size:15px;color:#1e293b}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px}
+.stat-card{background:#fff;border-radius:14px;padding:24px;border:1px solid #e2e8f0;text-align:center}
+.stat-num{font-size:32px;font-weight:800;color:#2563eb}
+.stat-label{font-size:13px;color:#64748b;margin-top:4px}
+.footer-link{text-align:center;margin-top:40px}
+.footer-link a{color:#2563eb;text-decoration:none;font-size:14px;margin:0 8px}
+@media(max-width:600px){.cards{grid-template-columns:1fr}.stats{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<nav><a class="logo" href="index.html">기출허브</a></nav>
+<div class="wrap">
+
+<script>
+// =============================================
+// ✏️  여기를 수정하세요! (나머지는 건드리지 마세요)
+// =============================================
+var INFO = {
+  siteName:    "기출허브",
+  tagline:     "기출문제를 가장 편리하게 공부하는 방법",
+  subTagline:  "무료로 언제 어디서나 학습하세요",
+  email:       "lynxil@naver.com",
+  contacts: [
+    { icon:"📧", title:"이메일",                desc:"lynxil@naver.com" },
+    { icon:"🐛", title:"오류 신고 / 문제 오타 제보", desc:"이메일로 과목명, 문제번호, 오류 내용을 보내주세요" },
+    { icon:"💡", title:"기능 제안",             desc:"더 좋은 서비스를 위한 의견을 환영합니다" }
+  ],
+  features: [
+    { icon:"🎯", title:"기출문제 완전 정복",  desc:"공인중개사 시험문제를 과목별로 체계적으로 풀어볼 수 있어요. 매 회차 업데이트 예정입니다." },
+    { icon:"📕", title:"오답노트 자동 관리",  desc:"틀린 문제는 자동으로 오답노트에 저장돼요. \"이해했어요\" 버튼으로 완료 처리도 가능합니다." },
+    { icon:"⭐", title:"북마크 기능",         desc:"중요한 문제에 별표를 달아두고 나중에 다시 확인하세요. 학습 데이터는 내 기기에 자동 저장됩니다." },
+    { icon:"📊", title:"과목별 통계",         desc:"각 과목별 정답률과 학습 진도를 한눈에 확인할 수 있어요. 약점 과목을 집중 공략하세요." }
+  ]
+};
+// =============================================
+
+// 아래는 자동으로 렌더링됩니다
+document.addEventListener('DOMContentLoaded', function() {
+  var w = document.getElementById('wrap');
+  var h = '';
+
+  h += '<div class="hero"><h1>📚 '+INFO.siteName+'</h1><p>'+INFO.tagline+'<br>'+INFO.subTagline+'</p></div>';
+
+  h += '<div class="cards">';
+  INFO.features.forEach(function(f) {
+    h += '<div class="card"><div class="card-icon">'+f.icon+'</div><h2>'+f.title+'</h2><p>'+f.desc+'</p></div>';
+  });
+  h += '</div>';
+
+  h += '<div class="contact-card"><h2>문의하기</h2>';
+  INFO.contacts.forEach(function(c) {
+    h += '<div class="contact-item"><div class="contact-icon">'+c.icon+'</div><div class="contact-info"><strong>'+c.title+'</strong><span>'+c.desc+'</span></div></div>';
+  });
+  h += '</div>';
+
+  h += '<div class="footer-link">';
+  h += '<a href="index.html">← 기출허브로 돌아가기</a> | ';
+  h += '<a href="privacy.html">개인정보처리방침</a> | ';
+  h += '<a href="terms.html">이용약관</a>';
+  h += '</div>';
+
+  w.innerHTML = h;
+});
+</script>
+
+<div id="wrap"><p style="text-align:center;padding:60px;color:#94a3b8">로딩 중...</p></div>
+</div>
+</body>
+</html>
