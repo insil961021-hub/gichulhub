@@ -3,14 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>기출허브 - 공인중개사 기출문제 무료 풀기</title>
-<meta name="description" content="공인중개사, 각종 국가자격시험 기출문제를 무료로 풀어보세요. 과목별 문제풀이, 오답노트 자동 저장, 북마크 기능 제공.">
-<meta name="keywords" content="공인중개사 기출문제, 공인중개사 36회, 부동산학개론 기출, 민법 기출, 공인중개사법 기출, 부동산공법 기출, 기출문제 무료">
-<meta property="og:title" content="기출허브 - 공인중개사 기출문제 무료 풀기">
-<meta property="og:description" content="공인중개사, 각종 국가자격시험 기출문제를 무료로 풀어보세요. 과목별 문제풀이, 오답노트 자동 저장, 북마크 기능 제공.">
-<meta property="og:url" content="https://gichulhub.pages.dev/">
-<meta name="robots" content="index, follow">
-<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4297606996286745" crossorigin="anonymous"></script>
+<title>기출허브 - 공인중개사 기출문제</title>
 <script src="exam_data.js"></script>
 <script src="exam_data_35.js"></script>
 <style>
@@ -104,29 +97,15 @@ main{flex:1;padding:24px;max-width:820px}
   <a class="logo" href="#">기출허브</a>
   <div class="nav-tabs">
     <button class="nav-tab active">공인중개사</button>
-    <button class="nav-tab" onclick="alert('준비중!')">공인노무사</button>
-    <button class="nav-tab" onclick="alert('준비중!')">세무사</button>
-    <button class="nav-tab" onclick="alert('준비중!')">감정평가사</button>
   </div>
   <div class="nav-right">
-    <a href="about.html" class="btn-sm" style="text-decoration:none">소개</a>
     <button class="btn-sm" onclick="toggleAdmin()">⚙ 관리자</button>
+    <button class="btn-sm" style="background:#2563eb;color:#fff">로그인</button>
   </div>
 </nav>
 <div class="layout">
   <aside id="sidebar"></aside>
-  <div style="flex:1;min-width:0;display:flex;flex-direction:column">
-    <div id="searchBar" style="padding:12px 24px 0;background:#f4f6f9">
-      <div style="position:relative;max-width:440px">
-        <input id="searchInput" type="text" placeholder="🔍 키워드 검색 (예: 토지, 임대차, 등기...)"
-          style="width:100%;padding:8px 36px 8px 16px;border-radius:20px;border:1.5px solid #e2e8f0;font-size:13px;font-family:inherit;background:#fff;outline:none"
-          oninput="doSearch(this.value)">
-        <button id="searchClearBtn" onclick="doSearch('')" style="display:none;position:absolute;right:10px;top:50%;transform:translateY(-50%);border:none;background:none;cursor:pointer;font-size:15px;color:#94a3b8">✕</button>
-      </div>
-      <div id="searchMsg" style="font-size:13px;color:#2563eb;font-weight:600;padding:4px 4px 0;min-height:20px"></div>
-    </div>
-    <main id="main" style="flex:1"></main>
-  </div>
+  <main id="main"></main>
 </div>
 <div class="modal-overlay" id="editModal">
   <div class="modal">
@@ -146,15 +125,5 @@ main{flex:1;padding:24px;max-width:820px}
   </div>
 </div>
 <script src="app.js"></script>
-
-<footer style="text-align:center;padding:24px 20px;font-size:13px;color:#94a3b8;border-top:1px solid #e2e8f0;margin-top:20px;background:#fff">
-  <a href="about.html" style="color:#64748b;text-decoration:none;margin:0 10px">소개 및 문의</a>
-  <span style="color:#e2e8f0">|</span>
-  <a href="privacy.html" style="color:#64748b;text-decoration:none;margin:0 10px">개인정보처리방침</a>
-  <span style="color:#e2e8f0">|</span>
-  <a href="terms.html" style="color:#64748b;text-decoration:none;margin:0 10px">이용약관</a>
-  <br><br>
-  <span>© 2026 기출허브 · 본 사이트의 기출문제는 학습 목적으로 제공됩니다</span>
-</footer>
 </body>
 </html>
