@@ -1,5 +1,5 @@
 var EXAM_DATA={36:EXAM_DATA_36,35:EXAM_DATA_35};
-var state={examYear:36,subjectIdx:0,filter:'all',currentQ:0,answers:{},bookmarks:{},resolved:{},adminMode:false,editTarget:null};
+var state={examYear:36,subjectIdx:0,filter:'all',search:'',currentQ:0,answers:{},bookmarks:{},resolved:{},adminMode:false,editTarget:null};
 function saveS(){try{localStorage.setItem('gh',JSON.stringify({a:state.answers,b:state.bookmarks,r:state.resolved}));}catch(e){}}
 function loadS(){try{var s=JSON.parse(localStorage.getItem('gh')||'{}');state.answers=s.a||{};state.bookmarks=s.b||{};state.resolved=s.r||{};}catch(e){}}
 loadS();
@@ -8,8 +8,17 @@ function subj(){return curData()[state.subjectIdx];}
 function qk(q){return state.subjectIdx+'_'+q.number;}
 function filteredQ(){
   var qs=subj().questions;
-  if(state.filter==='wrong')return qs.filter(function(q){var a=state.answers[qk(q)];return a&&a!==q.answer&&!state.resolved[qk(q)];});
-  if(state.filter==='bm')return qs.filter(function(q){return state.bookmarks[qk(q)];});
+  if(state.filter==='wrong')qs=qs.filter(function(q){var a=state.answers[qk(q)];return a&&a!==q.answer&&!state.resolved[qk(q)];});
+  if(state.filter==='bm')qs=qs.filter(function(q){return state.bookmarks[qk(q)];});
+  if(state.search){
+    var kw=state.search.toLowerCase();
+    qs=qs.filter(function(q){
+      return (q.question||'').toLowerCase().indexOf(kw)>=0||
+             (q.condition||'').toLowerCase().indexOf(kw)>=0||
+             (q.explanation||'').toLowerCase().indexOf(kw)>=0||
+             q.choices.some(function(c){return c.toLowerCase().indexOf(kw)>=0;});
+    });
+  }
   return qs;
 }
 function wrongCount(){
@@ -59,6 +68,7 @@ function renderMain(){
   h+='<button class="filter-btn'+(state.filter==='all'?' active':'')+'" onclick="setFilter(\'all\')">전체 '+s.questions.length+'문제</button>';
   h+='<button class="filter-btn'+(state.filter==='wrong'?' active':'')+'" onclick="setFilter(\'wrong\')">오답만</button>';
   h+='<button class="filter-btn'+(state.filter==='bm'?' active':'')+'" onclick="setFilter(\'bm\')">★ 북마크</button>';
+  h+='<input type="text" id="searchBox" placeholder="🔍 키워드 검색..." value="'+esc(state.search)+'" oninput="setSearch(this.value)" style="margin-left:auto;padding:5px 12px;border:1.5px solid #e2e8f0;border-radius:20px;font-size:13px;outline:none;width:180px">';
   h+='</div>';
   h+='<div class="progress-card"><div class="progress-info"><h3>학습 진도</h3>';
   h+='<div class="pbar-wrap"><div class="pbar-fill" style="width:'+pct+'%"></div></div>';
@@ -67,7 +77,8 @@ function renderMain(){
   h+='<div class="stat"><div class="stat-num">'+(done-cor)+'</div><div class="stat-label">오답</div></div>';
   h+='<div class="stat"><div class="stat-num">'+(s.questions.length-done)+'</div><div class="stat-label">미풀이</div></div></div></div>';
   if(!qs.length){
-    h+='<div class="empty"><div style="font-size:48px">🎉</div><p>'+(state.filter==='wrong'?'오답이 없어요!':'해당 문제가 없어요!')+'</p></div>';
+    var emptyMsg=state.search?'"'+state.search+'" 검색 결과가 없어요!':state.filter==='wrong'?'오답이 없어요!':'해당 문제가 없어요!';
+    h+='<div class="empty"><div style="font-size:48px">'+(state.search?'🔍':'🎉')+'</div><p>'+emptyMsg+'</p></div>';
     document.getElementById('main').innerHTML=h;return;
   }
   var q=qs[state.currentQ];var key=qk(q);
@@ -96,9 +107,19 @@ function renderMain(){
   document.getElementById('main').innerHTML=h;
 }
 
-function selYear(y){state.examYear=y;state.subjectIdx=0;state.currentQ=0;state.filter='all';renderSidebar();renderMain();}
-function selSubj(i){state.subjectIdx=i;state.currentQ=0;state.filter='all';renderSidebar();renderMain();}
+function selYear(y){state.examYear=y;state.subjectIdx=0;state.currentQ=0;state.filter='all';state.search='';renderSidebar();renderMain();}
+function selSubj(i){state.subjectIdx=i;state.currentQ=0;state.filter='all';state.search='';renderSidebar();renderMain();}
 function setFilter(f){state.filter=f;state.currentQ=0;renderMain();}
+var _sTimer=null;
+function setSearch(v){
+  state.search=v;state.currentQ=0;
+  clearTimeout(_sTimer);
+  _sTimer=setTimeout(function(){
+    renderMain();
+    var nb=document.getElementById('searchBox');
+    if(nb){nb.value=state.search;nb.focus();}
+  },300);
+}
 function goTo(i){state.currentQ=i;renderMain();}
 function nextQ(){var qs=filteredQ();if(state.currentQ<qs.length-1){state.currentQ++;renderMain();}else alert('마지막 문제예요!');}
 function pick(key,c,ans){if(state.answers[key])return;state.answers[key]=c;saveS();renderMain();renderSidebar();}
@@ -192,22 +213,10 @@ function copyDataJson(){
 }
 function showPdf(){
   var pdfs=[
-    {label:'제36회 기출문제 (2025)', file:'36회_기출.pdf'},
-    {label:'제35회 기출문제 (2024)', file:'35회_기출.pdf'},
-    {label:'제34회 기출문제 (2023)', file:'34회_기출.pdf'},
-    {label:'제33회 기출문제 (2022)', file:'33회_기출.pdf'},
-    {label:'제32회 기출문제 (2021)', file:'32회_기출.pdf'},
-    {label:'제31회 기출문제 (2020)', file:'31회_기출.pdf'},
-    {label:'제30회 기출문제 (2019)', file:'30회_기출.pdf'},
-  ];
-  var h='<div style="padding:20px"><h2 style="margin-bottom:16px;font-size:18px;font-weight:800">📥 기출문제 PDF 다운로드</h2>';
-  pdfs.forEach(function(p){
-    h+='<a href="'+p.file+'" download style="display:flex;align-items:center;gap:10px;padding:12px 16px;margin-bottom:8px;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;text-decoration:none;color:#1e293b;font-size:14px;font-weight:600">';
-    h+='<span style="font-size:20px">📄</span>'+p.label+'<span style="margin-left:auto;color:#2563eb;font-size:12px">다운로드</span></a>';
-  });
-  h+='<p style="font-size:12px;color:#94a3b8;margin-top:12px">※ 파일명 형식: 회차_기출.pdf</p>';
-  h+='<button onclick="renderMain()" style="margin-top:12px;padding:8px 20px;background:#f1f5f9;border:none;border-radius:8px;font-weight:700;cursor:pointer">← 돌아가기</button></div>';
-  document.getElementById('main').innerHTML=h;
-}
-renderSidebar();
-renderMain();
+    {label:'제36회 기출문제+정답 (2025)', n:'36'},
+    {label:'제35회 기출문제+정답 (2024)', n:'35'},
+    {label:'제34회 기출문제+정답 (2023)', n:'34'},
+    {label:'제33회 기출문제+정답 (2022)', n:'33'},
+    {label:'제32회 기출문제+정답 (2021)', n:'32'},
+    {label:'제31회 기출문제+정답 (2020)', n:'31'},
+    {label:'제30회 기출문제+정�
