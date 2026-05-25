@@ -12,6 +12,7 @@
 <meta name="robots" content="index, follow">
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4297606996286745" crossorigin="anonymous"></script>
 <script src="exam_data.js"></script>
+<script src="exam_data_35.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Noto Sans KR',sans-serif;background:#f4f6f9;color:#222;font-size:15px}
@@ -114,7 +115,18 @@ main{flex:1;padding:24px;max-width:820px}
 </nav>
 <div class="layout">
   <aside id="sidebar"></aside>
-  <main id="main"></main>
+  <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+    <div id="searchBar" style="padding:12px 24px 0;background:#f4f6f9">
+      <div style="position:relative;max-width:440px">
+        <input id="searchInput" type="text" placeholder="🔍 키워드 검색 (예: 토지, 임대차, 등기...)"
+          style="width:100%;padding:8px 36px 8px 16px;border-radius:20px;border:1.5px solid #e2e8f0;font-size:13px;font-family:inherit;background:#fff;outline:none"
+          oninput="doSearch(this.value)">
+        <button id="searchClearBtn" onclick="doSearch('')" style="display:none;position:absolute;right:10px;top:50%;transform:translateY(-50%);border:none;background:none;cursor:pointer;font-size:15px;color:#94a3b8">✕</button>
+      </div>
+      <div id="searchMsg" style="font-size:13px;color:#2563eb;font-weight:600;padding:4px 4px 0;min-height:20px"></div>
+    </div>
+    <main id="main" style="flex:1"></main>
+  </div>
 </div>
 <div class="modal-overlay" id="editModal">
   <div class="modal">
