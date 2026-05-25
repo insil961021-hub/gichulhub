@@ -18,6 +18,10 @@ function wrongCount(){
   return w;
 }
 function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');}
+function highlight(s){
+  return esc(s).replace(/(틀린|틀리지|옳지 않은|옳지않은|잘못된|아닌 것|아닌것)/g,'<span style="color:#ef4444;font-weight:700">$1</span>')
+               .replace(/(옳은|맞는|올바른|모두 고른|모두고른)/g,'<span style="color:#2563eb;font-weight:700">$1</span>');
+}
 
 function renderSidebar(){
   var w=wrongCount();
@@ -34,6 +38,7 @@ function renderSidebar(){
   h+='</div><hr class="sidebar-divider"><div class="sidebar-section">';
   h+='<div class="sidebar-item" onclick="showWrong()">📕 오답노트'+(w>0?'<span class="sidebar-badge">'+w+'</span>':'')+'</div>';
   h+='<div class="sidebar-item" onclick="showStats()">📊 내 통계</div>';
+  h+='<div class="sidebar-item" onclick="showPdf()">📥 PDF 다운로드</div>';
   h+='</div>';
   if(state.adminMode){
     h+='<hr class="sidebar-divider"><div class="sidebar-section">';
@@ -78,7 +83,7 @@ function renderMain(){
   if(state.filter==='wrong'&&isAns)h+='<button class="btn-resolve" onclick="resolve(\''+key+'\')">✓ 이해했어요</button>';
   h+='<button class="btn-icon'+(isBm?' bookmarked':'')+'" onclick="toggleBm(\''+key+'\')">'+(isBm?'★':'☆')+'</button>';
   if(state.adminMode)h+='<button class="btn-edit-q" onclick="openEdit('+state.subjectIdx+','+q.number+')">✏️ 수정</button>';
-  h+='</div></div><div class="q-body"><div class="q-text">'+esc(q.question)+'</div>';
+  h+='</div></div><div class="q-body"><div class="q-text">'+highlight(q.question)+'</div>';
   if(q.condition)h+='<div class="q-condition">'+esc(q.condition)+'</div>';
   h+='<div class="choices">';
   q.choices.forEach(function(c,i){
@@ -184,6 +189,25 @@ function copyDataJson(){
     var ta=document.createElement('textarea');ta.value=out;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);
     alert('✅ 복사됐어요! exam_data_'+yr+'.js에 붙여넣기 하세요.');
   }
+}
+function showPdf(){
+  var pdfs=[
+    {label:'제36회 기출문제 (2025)', file:'36회_기출.pdf'},
+    {label:'제35회 기출문제 (2024)', file:'35회_기출.pdf'},
+    {label:'제34회 기출문제 (2023)', file:'34회_기출.pdf'},
+    {label:'제33회 기출문제 (2022)', file:'33회_기출.pdf'},
+    {label:'제32회 기출문제 (2021)', file:'32회_기출.pdf'},
+    {label:'제31회 기출문제 (2020)', file:'31회_기출.pdf'},
+    {label:'제30회 기출문제 (2019)', file:'30회_기출.pdf'},
+  ];
+  var h='<div style="padding:20px"><h2 style="margin-bottom:16px;font-size:18px;font-weight:800">📥 기출문제 PDF 다운로드</h2>';
+  pdfs.forEach(function(p){
+    h+='<a href="'+p.file+'" download style="display:flex;align-items:center;gap:10px;padding:12px 16px;margin-bottom:8px;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;text-decoration:none;color:#1e293b;font-size:14px;font-weight:600">';
+    h+='<span style="font-size:20px">📄</span>'+p.label+'<span style="margin-left:auto;color:#2563eb;font-size:12px">다운로드</span></a>';
+  });
+  h+='<p style="font-size:12px;color:#94a3b8;margin-top:12px">※ 파일명 형식: 회차_기출.pdf</p>';
+  h+='<button onclick="renderMain()" style="margin-top:12px;padding:8px 20px;background:#f1f5f9;border:none;border-radius:8px;font-weight:700;cursor:pointer">← 돌아가기</button></div>';
+  document.getElementById('main').innerHTML=h;
 }
 renderSidebar();
 renderMain();
