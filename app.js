@@ -1,4 +1,4 @@
-var EXAM_DATA={36:EXAM_DATA_36,35:EXAM_DATA_35};
+var EXAM_DATA={36:EXAM_DATA_36,35:EXAM_DATA_35,34:EXAM_DATA_34,33:EXAM_DATA_33};
 var state={examYear:36,subjectIdx:0,filter:'all',search:'',currentQ:0,answers:{},bookmarks:{},resolved:{}};
 function saveS(){try{localStorage.setItem('gh',JSON.stringify({a:state.answers,b:state.bookmarks,r:state.resolved}));}catch(e){}}
 function loadS(){try{var s=JSON.parse(localStorage.getItem('gh')||'{}');state.answers=s.a||{};state.bookmarks=s.b||{};state.resolved=s.r||{};}catch(e){}}
@@ -32,22 +32,36 @@ function highlight(s){
                .replace(/(옳은|맞는|올바른|모두 고른|모두고른)/g,'<span style="color:#2563eb;font-weight:700">$1</span>');
 }
 
+function toggleMenu(){
+  var sd=document.getElementById('sidebar');
+  var ov=document.getElementById('menu-overlay');
+  if(sd.classList.contains('drawer-open')){sd.classList.remove('drawer-open');ov.classList.remove('open');}
+  else{sd.classList.add('drawer-open');ov.classList.add('open');}
+}
+function closeMenu(){
+  var sd=document.getElementById('sidebar');
+  var ov=document.getElementById('menu-overlay');
+  if(sd){sd.classList.remove('drawer-open');}
+  if(ov){ov.classList.remove('open');}
+}
+
 function renderSidebar(){
   var w=wrongCount();
-  var h='<div class="sidebar-section"><span class="sidebar-label">회차</span><div class="round-tabs">';
+  var h='<div class="sidebar-close-btn" onclick="closeMenu()"><span style="font-size:20px">✕</span> 닫기</div>';
+  h+='<div class="sidebar-section"><span class="sidebar-label">회차</span><div class="round-tabs">';
   h+='<button class="round-tab'+(state.examYear===36?' active':'')+'" onclick="selYear(36)">36회</button>';
   h+='<button class="round-tab'+(state.examYear===35?' active':'')+'" onclick="selYear(35)">35회</button>';
-  h+='<button class="round-tab disabled" onclick="alert(\'34회 준비중!\')">34회</button>';
-  h+='<button class="round-tab disabled" onclick="alert(\'33회 준비중!\')">33회</button>';
+  h+='<button class="round-tab'+(state.examYear===34?' active':'')+'" onclick="selYear(34)">34회</button>';
+  h+='<button class="round-tab'+(state.examYear===33?' active':'')+'" onclick="selYear(33)">33회</button>';
   h+='</div></div>';
   h+='<div class="sidebar-section"><span class="sidebar-label">1교시</span>';
   curData().forEach(function(s,i){if(s.session!==1)return;h+='<div class="sidebar-item'+(state.subjectIdx===i?' active':'')+'" onclick="selSubj('+i+')">'+s.subject+'</div>';});
   h+='</div><div class="sidebar-section"><span class="sidebar-label">2교시</span>';
   curData().forEach(function(s,i){if(s.session!==2)return;h+='<div class="sidebar-item'+(state.subjectIdx===i?' active':'')+'" onclick="selSubj('+i+')">'+s.subject+'</div>';});
   h+='</div><hr class="sidebar-divider"><div class="sidebar-section">';
-  h+='<div class="sidebar-item" onclick="showWrong()">📕 오답노트'+(w>0?'<span class="sidebar-badge">'+w+'</span>':'')+'</div>';
+  h+='<div class="sidebar-item" onclick="showWrong();closeMenu()">📕 오답노트'+(w>0?'<span class="sidebar-badge">'+w+'</span>':'')+'</div>';
   h+='<div class="sidebar-item" onclick="showStats()">📊 내 통계</div>';
-  h+='<div class="sidebar-item" onclick="showPdf()">📥 PDF 다운로드</div>';
+  h+='<div class="sidebar-item" onclick="showPdf();closeMenu()">📥 PDF 다운로드</div>';
   h+='</div>';
   document.getElementById('sidebar').innerHTML=h;
 }
@@ -101,8 +115,8 @@ function renderMain(){
   document.getElementById('main').innerHTML=h;
 }
 
-function selYear(y){state.examYear=y;state.subjectIdx=0;state.currentQ=0;state.filter='all';state.search='';renderSidebar();renderMain();}
-function selSubj(i){state.subjectIdx=i;state.currentQ=0;state.filter='all';state.search='';renderSidebar();renderMain();}
+function selYear(y){state.examYear=y;state.subjectIdx=0;state.currentQ=0;state.filter='all';state.search='';renderSidebar();renderMain();closeMenu();}
+function selSubj(i){state.subjectIdx=i;state.currentQ=0;state.filter='all';state.search='';renderSidebar();renderMain();closeMenu();}
 function setFilter(f){state.filter=f;state.currentQ=0;renderMain();}
 var _sTimer=null;
 function setSearch(v){
@@ -174,4 +188,3 @@ function showPdf(){
 }
 renderSidebar();
 renderMain();
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          
