@@ -5,11 +5,13 @@ if (Test-Path $lockFile) {
     Write-Host "lock 파일 제거 완료" -ForegroundColor Yellow
 }
 
-# app.js (try-catch 에러 핸들러 포함) 추가 커밋
-git add app.js
-git commit -m "모바일 에러 핸들러 추가 (try-catch)"
+# 변경된 파일 전부 스테이징
+git add exam_data_33.js exam_data_34.js exam_data_35.js app.js index.html about.html privacy.html sitemap.xml terms.html exam_data.js
 
-# 밀린 커밋 2개 한 번에 push
+# 커밋
+git commit -m "32회 부동산학개론 추가 및 데이터 정리 (33~35회 완성)"
+
+# push
 git push origin main
 
 Write-Host "`n완료! Cloudflare Pages가 자동 배포됩니다." -ForegroundColor Green
