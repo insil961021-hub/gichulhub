@@ -488,12 +488,12 @@ function showMyBookList(){
       var d=new Date(book.created_at);
       var dateStr=(d.getMonth()+1)+'월 '+d.getDate()+'일';
       h+='<div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:10px;display:flex;align-items:center;gap:12px">';
-      h+='<div style="flex:1;cursor:pointer" onclick="openMyBook(''+book.id+'')">';
+      h+='<div style="flex:1;cursor:pointer" onclick="openMyBook('+book.id+')">';
       h+='<div style="font-size:15px;font-weight:700;color:#1e293b">'+esc(book.title)+'</div>';
       h+='<div style="font-size:12px;color:#64748b;margin-top:2px">'+book.questions.length+'문제 · '+book.choice_count+'지선다 · '+dateStr+'</div>';
       h+='</div>';
-      h+='<button onclick="downloadMyBook(''+book.id+'')" style="padding:5px 10px;background:#f0fdf4;color:#16a34a;border:1.5px solid #86efac;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">⬇ JSON</button>';
-      h+='<button onclick="deleteMyBook(''+book.id+'')" style="padding:5px 10px;background:#fef2f2;color:#ef4444;border:1.5px solid #fecaca;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">삭제</button>';
+      h+='<button onclick="downloadMyBook('+book.id+')" style="padding:5px 10px;background:#f0fdf4;color:#16a34a;border:1.5px solid #86efac;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">⬇ JSON</button>';
+      h+='<button onclick="deleteMyBook('+book.id+')" style="padding:5px 10px;background:#fef2f2;color:#ef4444;border:1.5px solid #fecaca;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">삭제</button>';
       h+='</div>';
     });
   }
@@ -587,14 +587,14 @@ function renderMyBook(){
   h+='<h1 style="font-size:18px;font-weight:800;color:#1e293b">'+esc(_mbActive.title)+'</h1></div>';
   h+='<p style="margin-top:4px;font-size:13px;color:#64748b">'+qs.length+'문제 · '+_mbActive.choice_count+'지선다</p></div>';
   h+='<div class="q-card"><div class="q-header"><span class="q-num">Q'+q.number+'</span><div class="q-actions">';
-  h+='<button class="btn-icon'+(isBm?' bookmarked':'')+'" onclick="toggleBmMb(''+key+'')">'+(isBm?'★':'☆')+'</button>';
+  h+='<button class="btn-icon'+(isBm?' bookmarked':'')+'" onclick="toggleBmMb('+key+')">'+(isBm?'★':'☆')+'</button>';
   h+='</div></div><div class="q-body"><div class="q-text">'+highlight(q.question)+'</div>';
   if(q.condition)h+='<div class="q-condition">'+esc(q.condition)+'</div>';
   h+='<div class="choices">';
   q.choices.forEach(function(c,i){
     var idx=i+1;
     var cls='choice'+(isAns?(idx===q.answer?' correct':idx===chosen?' wrong':''):'');
-    h+='<button class="'+cls+'" onclick="pickMb(''+key+'','+idx+','+q.answer+')"'+(isAns?' disabled':'')+'>'+esc(c)+'</button>';
+    h+='<button class="'+cls+'" onclick="pickMb('+key+','+idx+','+q.answer+')"'+(isAns?' disabled':'')+'>'+esc(c)+'</button>';
   });
   h+='</div>';
   h+='<div class="explanation'+(isAns?' show':'')+'"><div class="explanation-title">💡 해설</div>'+esc(q.explanation)+'</div>';
@@ -622,4 +622,5 @@ try {
   renderSidebar();
   renderMain();
 } catch(e) {
-  document.getElementById('main').innerHTML='<div style="text-align:center;padding:60px 20px"><div style="font-size:48px">&#x1F625;</div><p style="font-size:16px;font-weight:700;color:#1e293b;margin:16px 0 8px">&#xB370;&#xC774;&#xD130;&#xB97C; &#xBD88;&#xB7EC;&#xC624;&#xC9C0; &#xBABB;&#xD588;&#xC5B4;&#xC694;</p><p style="font-size:13px;color:#64748b;margin-bottom:20px">&#xD398;&#xC774;&#xC9C0;&#xB97C; &#xC0C8;&#xB85C;&#xACE0;&#xCE68; &#xD574;&#xC8FC;&#xC138;&#xC694;</p><button onclic
+  document.getElementById('main').innerHTML='<div style="text-align:center;padding:60px 20px"><div style="font-size:48px">&#x1F625;</div><p style="font-size:16px;font-weight:700;color:#1e293b;margin:16px 0 8px">&#xB370;&#xC774;&#xD130;&#xB97C; &#xBD88;&#xB7EC;&#xC624;&#xC9C0; &#xBABB;&#xD588;&#xC5B4;&#xC694;</p><p style="font-size:13px;color:#64748b;margin-bottom:20px">&#xD398;&#xC774;&#xC9C0;&#xB97C; &#xC0C8;&#xB85C;&#xACE0;&#xCE68; &#xD574;&#xC8FC;&#xC138;&#xC694;</p><button onclick="location.reload()" style="padding:10px 24px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">&#xC0C8;&#xB85C;&#xACE0;&#xCE68;</button></div>';
+}
