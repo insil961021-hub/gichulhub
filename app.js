@@ -171,10 +171,14 @@ function navTabStudio(){
 }
 function renderSidebar(){
   if(_navMode==='studio'){
+    var w=wrongCount();
     var h='<div class="sidebar-close-btn" onclick="closeMenu()"><span style="font-size:20px">✕</span> 닫기</div>';
-    h+='<div class="sidebar-section"><span class="sidebar-label">문제 스튜디오</span><div style="font-size:11px;color:#94a3b8;padding:2px 4px 6px;line-height:1.4">내가 직접 만드는 문제집</div>';
+    h+='<div class="sidebar-section"><span class="sidebar-label">문제 스튜디오</span><div style="font-size:11px;color:#94a3b8;padding:2px 4px 6px;line-height:1.4">직접 만드는 나만의 문제집</div>';
     h+='<div class="sidebar-item" onclick="showMyBookList();closeMenu()">📚 내 문제집'+(_myBooks.length?'<span class="sidebar-badge" style="background:#7c3aed">'+_myBooks.length+'</span>':'')+'</div>';
     h+='<div class="sidebar-item" onclick="showMyBookCreate();closeMenu()">✏️ 새로 만들기</div>';
+    h+='</div><hr class="sidebar-divider"><div class="sidebar-section">';
+    h+='<div class="sidebar-item" onclick="showWrong();closeMenu()">📕 오답노트'+(w>0?'<span class="sidebar-badge">'+w+'</span>':'')+'</div>';
+    h+='<div class="sidebar-item" onclick="showStats()">📊 내 통계</div>';
     h+='</div>';
     document.getElementById('sidebar').innerHTML=h;
     return;
@@ -516,7 +520,7 @@ function showMyBookList(){
       h+='<div style="font-size:15px;font-weight:700;color:#1e293b">'+esc(book.title)+'</div>';
       h+='<div style="font-size:12px;color:#64748b;margin-top:2px">'+book.questions.length+'문제 · '+book.choice_count+'지선다 · '+dateStr+'</div>';
       h+='</div>';
-      h+='<button onclick="downloadMyBook('+book.id+')" style="padding:5px 10px;background:#f0fdf4;color:#16a34a;border:1.5px solid #86efac;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">⬇ JSON</button>';
+      h+='<button onclick="downloadMyBook('+book.id+')" style="padding:5px 10px;background:#f0fdf4;color:#16a34a;border:1.5px solid #86efac;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">💾 백업</button>';
       h+='<button onclick="deleteMyBook('+book.id+')" style="padding:5px 10px;background:#fef2f2;color:#ef4444;border:1.5px solid #fecaca;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">삭제</button>';
       h+='</div>';
     });
