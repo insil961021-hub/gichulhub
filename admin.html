@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>기출허브 관리자</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Noto Sans KR',sans-serif;background:#f4f6f9;color:#222;font-size:14px}
+nav{background:#1e293b;color:#fff;padding:0 20px;height:52px;display:flex;align-items:center;gap:12px}
+.logo{font-size:18px;font-weight:800;color:#60a5fa}
+.nav-badge{background:#ef4444;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px}
+.container{max-width:1100px;margin:0 auto;padding:24px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;align-items:center}
+select{padding:7px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;background:#fff;cursor:pointer}
+.btn{padding:7px 16px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;border:none}
+.btn-primary{background:#2563eb;color:#fff}.btn-primary:hover{background:#1d4ed8}
+.btn-danger{background:#ef4444;color:#fff}.btn-danger:hover{background:#dc2626}
+.btn-gray{background:#f1f5f9;color:#475569}.btn-gray:hover{background:#e2e8f0}
+.btn-green{background:#16a34a;color:#fff}.btn-green:hover{background:#15803d}
+.q-list{display:grid;gap:8px}
+.q-item{background:#fff;border:1.5px solid #e2e8f0;border-radius:10px;padding:14px 16px;display:flex;align-items:flex-start;gap:12px;cursor:pointer}
+.q-item:hover{border-color:#93c5fd;background:#f0f9ff}
+.q-item.modified{border-color:#f59e0b;background:#fffbeb}
+.q-num{background:#eff6ff;color:#2563eb;font-size:12px;font-weight:700;padding:3px 8px;border-radius:6px;white-space:nowrap}
+.q-num.mod{background:#fef9c3;color:#92400e}
+.q-text{flex:1;font-size:13px;line-height:1.5;color:#1e293b}
+.q-img-badge{font-size:11px;color:#16a34a;font-weight:700;white-space:nowrap}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100;overflow-y:auto;padding:20px}
+.modal-overlay.show{display:flex;align-items:flex-start;justify-content:center}
+.modal{background:#fff;border-radius:16px;padding:28px;width:100%;max-width:700px;margin:auto}
+.modal h3{font-size:18px;font-weight:800;margin-bottom:20px;color:#1e293b}
+.form-group{margin-bottom:16px}
+label{display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:6px}
+textarea,input[type=text]{width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical}
+textarea:focus,input:focus{outline:none;border-color:#93c5fd}
+.choices-grid{display:grid;gap:8px}
+.choice-row{display:flex;gap:8px;align-items:center}
+.choice-num{width:28px;height:28px;background:#eff6ff;color:#2563eb;font-weight:700;font-size:13px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.answer-select{display:flex;gap:8px;flex-wrap:wrap}
+.ans-btn{width:36px;height:36px;border-radius:8px;font-weight:700;font-size:14px;cursor:pointer;border:2px solid #e2e8f0;background:#fff;color:#475569}
+.ans-btn.selected{border-color:#2563eb;background:#2563eb;color:#fff}
+.img-preview{max-width:100%;max-height:200px;border-radius:8px;margin-top:8px;display:block}
+.modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:24px;padding-top:16px;border-top:1px solid #e2e8f0}
+.auth-screen{text-align:center;padding:80px 20px}
+.auth-screen h1{font-size:28px;font-weight:800;margin-bottom:12px;color:#1e293b}
+.auth-screen p{color:#64748b;margin-bottom:24px}
+.badge-mod{display:inline-block;background:#fef9c3;color:#92400e;font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px;margin-left:6px}
+</style>
+</head>
+<body>
+<nav>
+  <span class="logo">⚙️ 기출허브</span>
+  <span class="nav-badge">ADMIN</span>
+  <span style="margin-left:auto;font-size:13px" id="nav-user"></span>
+  <button id="nav-login-btn" class="btn btn-primary" style="font-size:12px;padding:5px 12px" onclick="loginAdmin()">Google 로그인</button>
+</nav>
+
+<div id="auth-screen" class="auth-screen container">
+  <h1>🔐 관리자 로그인</h1>
+  <p>관리자 계정(insil.kang@hear.com)으로 로그인해야 합니다</p>
+  <button onclick="loginAdmin()" class="btn btn-primary" style="font-size:15px;padding:12px 32px">Google로 로그인</button>
+</div>
+
+<div id="admin-panel" style="display:none">
+<div class="container">
+  <div class="toolbar">
+    <select id="sel-year" onchange="loadQuestions()"></select>
+    <select id="sel-subj" onchange="loadQuestions()"></select>
+    <button class="btn btn-green" onclick="openAddModal()">+ 문제 추가</button>
+    <span style="margin-left:auto;font-size:12px;color:#94a3b8" id="q-count"></span>
+  </div>
+  <div class="q-list" id="q-list"></div>
+</div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal-overlay" id="modal">
+<div class="modal">
+  <h3 id="modal-title">문제 편집</h3>
+  <input type="hidden" id="edit-qnum">
+  <div class="form-group">
+    <label>문제 번호</label>
+    <input type="text" id="edit-num" placeholder="예: 1">
+  </div>
+  <div class="form-group">
+    <label>문제 텍스트</label>
+    <textarea id="edit-question" rows="3" placeholder="문제를 입력하세요"></textarea>
+  </div>
+  <div class="form-group">
+    <label>조건/보기 (선택사항)</label>
+    <textarea id="edit-condition" rows="3" placeholder="보기나 조건이 있으면 입력 (없으면 비워두기)"></textarea>
+  </div>
+  <div class="form-group">
+    <label>문제 이미지 (표, 그림 등)</label>
+    <input type="file" id="edit-image" accept="image/*" onchange="previewImage(this)">
+    <img id="img-preview" class="img-preview" style="display:none">
+    <div id="current-img-info" style="font-size:12px;color:#64748b;margin-top:4px"></div>
+    <button id="btn-remove-img" onclick="removeImage()" class="btn btn-danger" style="display:none;margin-top:6px;font-size:12px;padding:4px 10px">이미지 삭제</button>
+  </div>
+  <div class="form-group">
+    <label>보기 (1~5)</label>
+    <div class="choices-grid" id="choices-grid"></div>
+  </div>
+  <div class="form-group">
+    <label>정답</label>
+    <div class="answer-select" id="answer-btns"></div>
+  </div>
+  <div class="form-group">
+    <label>해설</label>
+    <textarea id="edit-explanation" rows="4" placeholder="해설을 입력하세요"></textarea>
+  </div>
+  <div class="modal-footer">
+    <button class="btn btn-danger" id="btn-revert" onclick="revertQuestion()" style="display:none;margin-right:auto">원본으로 되돌리기</button>
+    <button class="btn btn-gray" onclick="closeModal()">취소</button>
+    <button class="btn btn-primary" onclick="saveQuestion()">💾 저장</button>
+  </div>
+</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="exam_data.js"></script>
+<script src="exam_data_35.js"></script>
+<script src="exam_data_34.js"></script>
+<script src="exam_data_33.js"></script>
+<script src="exam_data_32.js"></script>
+<script src="exam_data_31.js"></script>
+<script src="exam_data_30.js"></script>
+<script>
+const SUPA_URL = 'https://pwodhvrsokcvemskrqpw.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3b2RodnJzb2tjdmVtc2tycXB3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4OTk1MjIsImV4cCI6MjA5NTQ3NTUyMn0.FmcmggWVjmhRmeE_j2HvUAQbDA1AXYHTAOFw-o_Sb3Y';
+const ADMIN_EMAIL = 'insil.kang@hear.com';
+const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
+const EXAM_DATA = {36:EXAM_DATA_36,35:EXAM_DATA_35,34:EXAM_DATA_34,33:EXAM_DATA_33,32:EXAM_DATA_32,31:EXAM_DATA_31,30:EXAM_DATA_30};
+
+let currentUser = null;
+let dbQuestions = {};
+let currentYear = 36;
+let currentSubjIdx = 0;
+let editingQNum = null;
+let pendingImageFile = null;
+let currentImageUrl = null;
+
+supa.auth.onAuthStateChange((event, session) => {
+  currentUser = session ? session.user : null;
+  updateNav();
+  if (currentUser) {
+    if (currentUser.email !== ADMIN_EMAIL) {
+      document.getElementById('auth-screen').innerHTML = '<div class="auth-screen"><h1>🚫 접근 권한 없음</h1><p>관리자 계정만 접근할 수 있습니다.</p><button onclick="supa.auth.signOut()" class="btn btn-gray">로그아웃</button></div>';
+      document.getElementById('auth-screen').style.display = 'block';
+      document.getElementById('admin-panel').style.display = 'none';
+    } else {
+      document.getElementById('auth-screen').style.display = 'none';
+      document.getElementById('admin-panel').style.display = 'block';
+      initPanel();
+    }
+  } else {
+    document.getElementById('auth-screen').style.display = 'block';
+    document.getElementById('admin-panel').style.display = 'none';
+  }
+});
+
+function updateNav() {
+  const el = document.getElementById('nav-user');
+  const btn = document.getElementById('nav-login-btn');
+  if (currentUser) {
+    el.textContent = currentUser.email;
+    btn.textContent = '로그아웃';
+    btn.onclick = () => supa.auth.signOut();
+  } else {
+    el.textContent = '';
+    btn.textContent = 'Google 로그인';
+    btn.onclick = loginAdmin;
+  }
+}
+
+function loginAdmin() {
+  supa.auth.signInWithOAuth({provider:'google', options:{redirectTo: location.href}});
+}
+
+async function initPanel() {
+  const yearSel = document.getElementById('sel-year');
+  yearSel.innerHTML = [36,35,34,33,32,31,30].map(y => `<option value="${y}">${y}회</option>`).join('');
+  yearSel.value = 36;
+  await loadDbQuestions();
+  updateSubjectSelector();
+  loadQuestions();
+}
+
+async function loadDbQuestions() {
+  const {data} = await supa.from('questions').select('year,subject,q_num');
+  dbQuestions = {};
+  if (data) {
+    data.forEach(r => {
+      if (!dbQuestions[r.year]) dbQuestions[r.year] = {};
+      if (!dbQuestions[r.year][r.subject]) dbQuestions[r.year][r.subject] = new Set();
+      dbQuestions[r.year][r.subject].add(r.q_num);
+    });
+  }
+}
+
+function updateSubjectSelector() {
+  const year = parseInt(document.getElementById('sel-year').value);
+  const subjSel = document.getElementById('sel-subj');
+  const data = EXAM_DATA[year] || [];
+  subjSel.innerHTML = data.map((s,i) => `<option value="${i}">${s.subject}</option>`).join('');
+  currentSubjIdx = 0;
+}
+
+document.getElementById('sel-year').addEventListener('change', () => { updateSubjectSelector(); loadQuestions(); });
+
+function loadQuestions() {
+  currentYear = parseInt(document.getElementById('sel-year').value);
+  currentSubjIdx = parseInt(document.getElementById('sel-subj').value);
+  const data = EXAM_DATA[currentYear];
+  if (!data || !data[currentSubjIdx]) return;
+  const subj = data[currentSubjIdx];
+  const qs = subj.questions;
+  document.getElementById('q-count').textContent = qs.length + '문제';
+  const modSet = (dbQuestions[currentYear] && dbQuestions[currentYear][subj.subject]) || new Set();
+  let html = '';
+  qs.forEach(q => {
+    const isMod = modSet.has(q.q_num || q.number);
+    const num = q.q_num || q.number;
+    const text = (q.question || '').replace(/<[^>]*>/g,'').substring(0,80);
+    html += `<div class="q-item${isMod?' modified':''}" onclick="openEditModal(${num})">`;
+    html += `<span class="q-num${isMod?' mod':''}">Q${num}</span>`;
+    html += `<span class="q-text">${text}${isMod?'<span class="badge-mod">수정됨</span>':''}${q.image_url?'':''}`;
+    html += `</span>`;
+    if (q.image_url) html += `<span class="q-img-badge">🖼️</span>`;
+    html += `</div>`;
+  });
+  document.getElementById('q-list').innerHTML = html;
+}
+
+function buildChoicesGrid(choices) {
+  let h = '';
+  for (let i = 0; i < 5; i++) {
+    h += `<div class="choice-row"><span class="choice-num">${i+1}</span><input type="text" id="choice-${i+1}" value="${(choices&&choices[i])||''}" placeholder="보기 ${i+1}"></div>`;
+  }
+  document.getElementById('choices-grid').innerHTML = h;
+}
+
+function buildAnswerBtns(ans) {
+  let h = '';
+  for (let i = 1; i <= 5; i++) {
+    h += `<button class="ans-btn${ans===i?' selected':''}" onclick="selectAnswer(${i})" id="ans-${i}">${i}</button>`;
+  }
+  document.getElementById('answer-btns').innerHTML = h;
+}
+
+function selectAnswer(n) {
+  for (let i = 1; i <= 5; i++) {
+    const el = document.getElementById('ans-'+i);
+    if (el) el.className = 'ans-btn' + (i===n?' selected':'');
+  }
+}
+
+function getSelectedAnswer() {
+  for (let i = 1; i <= 5; i++) {
+    const el = document.getElementById('ans-'+i);
+    if (el && el.classList.contains('selected')) return i;
+  }
+  return null;
+}
+
+async function openEditModal(qnum) {
+  editingQNum = qnum;
+  pendingImageFile = null;
+  currentImageUrl = null;
+  const data = EXAM_DATA[currentYear];
+  const subj = data[currentSubjIdx];
+  const q = subj.questions.find(q => (q.q_num||q.number) === qnum);
+  
+  // Check if DB override exists
+  let dbQ = null;
+  const modSet = (dbQuestions[currentYear] && dbQuestions[currentYear][subj.subject]) || new Set();
+  if (modSet.has(qnum)) {
+    const {data: rows} = await supa.from('questions').select('*').eq('year',currentYear).eq('subject',subj.subject).eq('q_num',qnum).single();
+    dbQ = rows;
+  }
+  
+  const src = dbQ || q;
+  const choices = Array.isArray(src.choices) ? src.choices : [];
+  
+  document.getElementById('modal-title').textContent = `Q${qnum} 편집`;
+  document.getElementById('edit-num').value = qnum;
+  document.getElementById('edit-question').value = src.question || '';
+  document.getElementById('edit-condition').value = src.condition || '';
+  document.getElementById('edit-explanation').value = src.explanation || '';
+  buildChoicesGrid(choices);
+  buildAnswerBtns(src.answer);
+  
+  currentImageUrl = src.image_url || null;
+  const preview = document.getElementById('img-preview');
+  const info = document.getElementById('current-img-info');
+  const removeBtn = document.getElementById('btn-remove-img');
+  if (currentImageUrl) {
+    preview.src = currentImageUrl;
+    preview.style.display = 'block';
+    info.textContent = '현재 이미지 있음';
+    removeBtn.style.display = 'inline-block';
+  } else {
+    preview.style.display = 'none';
+    info.textContent = '';
+    removeBtn.style.display = 'none';
+  }
+  document.getElementById('edit-image').value = '';
+  
+  document.getElementById('btn-revert').style.display = dbQ ? 'inline-block' : 'none';
+  document.getElementById('modal').classList.add('show');
+}
+
+function openAddModal() {
+  editingQNum = null;
+  pendingImageFile = null;
+  currentImageUrl = null;
+  document.getElementById('modal-title').textContent = '문제 추가';
+  document.getElementById('edit-num').value = '';
+  document.getElementById('edit-question').value = '';
+  document.getElementById('edit-condition').value = '';
+  document.getElementById('edit-explanation').value = '';
+  buildChoicesGrid([]);
+  buildAnswerBtns(null);
+  document.getElementById('img-preview').style.display = 'none';
+  document.getElementById('current-img-info').textContent = '';
+  document.getElementById('btn-remove-img').style.display = 'none';
+  document.getElementById('btn-revert').style.display = 'none';
+  document.getElementById('modal').classList.add('show');
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('show');
+  pendingImageFile = null;
+}
+
+function previewImage(input) {
+  if (input.files && input.files[0]) {
+    pendingImageFile = input.files[0];
+    const reader = new FileReader();
+    reader.onload = e => {
+      const preview = document.getElementById('img-preview');
+      preview.src = e.target.result;
+      preview.style.display = 'block';
+    };
+    reader.readAsDataURL(input.files[0]);
+  }
+}
+
+function removeImage() {
+  currentImageUrl = null;
+  pendingImageFile = null;
+  document.getElementById('img-preview').style.display = 'none';
+  document.getElementById('current-img-info').textContent = '이미지 삭제됨 (저장 시 반영)';
+  document.getElementById('btn-remove-img').style.display = 'none';
+  document.getElementById('edit-image').value = '';
+}
+
+async function saveQuestion() {
+  const data = EXAM_DATA[currentYear];
+  const subj = data[currentSubjIdx];
+  const qnum = parseInt(document.getElementById('edit-num').value);
+  if (!qnum) { alert('문제 번호를 입력해주세요'); return; }
+  const question = document.getElementById('edit-question').value.trim();
+  if (!question) { alert('문제를 입력해주세요'); return; }
+  const answer = getSelectedAnswer();
+  if (!answer) { alert('정답을 선택해주세요'); return; }
+  const choices = [];
+  for (let i = 1; i <= 5; i++) {
+    const v = document.getElementById('choice-'+i).value.trim();
+    if (v) choices.push(v);
+  }
+  if (choices.length < 2) { alert('보기를 최소 2개 입력해주세요'); return; }
+
+  let imageUrl = currentImageUrl;
+  
+  // Upload image if new file selected
+  if (pendingImageFile) {
+    const ext = pendingImageFile.name.split('.').pop();
+    const path = `${currentYear}/${subj.subject.replace(/\s/g,'_')}/Q${qnum}_${Date.now()}.${ext}`;
+    const {data: upData, error: upErr} = await supa.storage.from('question-images').upload(path, pendingImageFile, {upsert:true});
+    if (upErr) { alert('이미지 업로드 실패: ' + upErr.message); return; }
+    const {data: urlData} = supa.storage.from('question-images').getPublicUrl(path);
+    imageUrl = urlData.publicUrl;
+  }
+
+  const row = {
+    year: currentYear,
+    subject: subj.subject,
+    session: subj.session,
+    q_num: qnum,
+    question: question,
+    condition: document.getElementById('edit-condition').value.trim() || null,
+    choices: choices,
+    answer: answer,
+    explanation: document.getElementById('edit-explanation').value.trim() || null,
+    image_url: imageUrl || null,
+    updated_at: new Date().toISOString()
+  };
+
+  const {error} = await supa.from('questions').upsert(row, {onConflict:'year,subject,q_num'});
+  if (error) { alert('저장 실패: ' + error.message); return; }
+  
+  alert('저장됐어요! ✅');
+  closeModal();
+  await loadDbQuestions();
+  loadQuestions();
+}
+
+async function revertQuestion() {
+  if (!confirm('DB 수정사항을 삭제하고 원본 JS 데이터로 되돌릴까요?')) return;
+  const data = EXAM_DATA[currentYear];
+  const subj = data[currentSubjIdx];
+  await supa.from('questions').delete().eq('year',currentYear).eq('subject',subj.subject).eq('q_num',editingQNum);
+  alert('원본으로 되돌렸어요!');
+  closeModal();
+  await loadDbQuestions();
+  loadQuestions();
+}
+
+document.getElementById('modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('modal')) closeModal();
+});
+</script>
+</body>
+</html>

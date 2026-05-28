@@ -3,11 +3,21 @@ var SUPA_URL='https://pwodhvrsokcvemskrqpw.supabase.co';
 var SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3b2RodnJzb2tjdmVtc2tycXB3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4OTk1MjIsImV4cCI6MjA5NTQ3NTUyMn0.FmcmggWVjmhRmeE_j2HvUAQbDA1AXYHTAOFw-o_Sb3Y';
 var _supa=(window.supabase&&window.supabase.createClient)?window.supabase.createClient(SUPA_URL,SUPA_KEY):null;
 var _user=null;
+var _dbQuestions={};
 var state={examYear:36,subjectIdx:0,filter:'all',search:'',currentQ:0,answers:{},bookmarks:{},resolved:{},examMode:false};
 function saveS(){try{localStorage.setItem('gh',JSON.stringify({a:state.answers,b:state.bookmarks,r:state.resolved}));}catch(e){}}
 function loadS(){try{var s=JSON.parse(localStorage.getItem('gh')||'{}');state.answers=s.a||{};state.bookmarks=s.b||{};state.resolved=s.r||{};}catch(e){}}
 loadS();
-function curData(){return EXAM_DATA[state.examYear]||EXAM_DATA_36;}
+function curData(){
+  var base=EXAM_DATA[state.examYear]||EXAM_DATA_36;
+  var ydb=_dbQuestions[state.examYear];
+  if(!ydb)return base;
+  return base.map(function(s){
+    var sdb=ydb[s.subject];
+    if(!sdb)return s;
+    return {year:s.year,exam:s.exam,subject:s.subject,session:s.session,questions:s.questions.map(function(q){var n=q.q_num||q.number;return(sdb[n]?sdb[n]:q);})};
+  });
+}
 function subj(){return curData()[state.subjectIdx];}
 function qk(q){return state.subjectIdx+'_'+q.number;}
 function filteredQ(){
@@ -36,6 +46,20 @@ function highlight(s){
                .replace(/(옳은|맞는|올바른|모두 고른|모두고른)/g,'<span style="color:#2563eb;font-weight:700">$1</span>');
 }
 
+function loadDbQuestions(){
+  if(!_supa)return;
+  _supa.from('questions').select('*').then(function(result){
+    if(result.error||!result.data)return;
+    _dbQuestions={};
+    result.data.forEach(function(row){
+      if(!_dbQuestions[row.year])_dbQuestions[row.year]={};
+      if(!_dbQuestions[row.year][row.subject])_dbQuestions[row.year][row.subject]={};
+      var num=row.q_num||row.number;
+      _dbQuestions[row.year][row.subject][num]={number:num,q_num:num,question:row.question,condition:row.condition||'',choices:row.choices,answer:row.answer,explanation:row.explanation||'',image_url:row.image_url||null};
+    });
+    renderSidebar();renderMain();
+  });
+}
 function renderNav(){
   var el=document.getElementById('nav-auth');
   if(!el)return;
@@ -181,6 +205,7 @@ function renderMain(){
   h+='<button class="btn-icon'+(isBm?' bookmarked':'')+'" onclick="toggleBm(\''+key+'\')">'+(isBm?'★':'☆')+'</button>';
   h+='</div></div><div class="q-body"><div class="q-text">'+highlight(q.question)+'</div>';
   if(q.condition)h+='<div class="q-condition">'+esc(q.condition)+'</div>';
+  if(q.image_url)h+='<div style="margin-bottom:12px"><img src="'+q.image_url+'" style="max-width:100%;border-radius:8px;border:1px solid #e2e8f0" alt="문제 이미지"></div>';
   h+='<div class="choices">';
   q.choices.forEach(function(c,i){
     var idx=i+1;var cls='choice'+(isAns?(state.examMode?' selected':(idx===q.answer?' correct':idx===chosen?' wrong':'')):'');
@@ -404,6 +429,7 @@ if(_supa){
 try {
   if(typeof EXAM_DATA_36==='undefined'){throw new Error('data load failed');}
   renderNav();
+  loadDbQuestions();
   renderSidebar();
   renderMain();
 } catch(e) {
