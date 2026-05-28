@@ -1,4 +1,8 @@
 var EXAM_DATA={36:EXAM_DATA_36,35:EXAM_DATA_35,34:EXAM_DATA_34,33:EXAM_DATA_33,32:EXAM_DATA_32,31:EXAM_DATA_31,30:EXAM_DATA_30};
+var SUPA_URL='https://pwodhvrsokcvemskrqpw.supabase.co';
+var SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3b2RodnJzb2tjdmVtc2tycXB3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4OTk1MjIsImV4cCI6MjA5NTQ3NTUyMn0.FmcmggWVjmhRmeE_j2HvUAQbDA1AXYHTAOFw-o_Sb3Y';
+var _supa=(window.supabase&&window.supabase.createClient)?window.supabase.createClient(SUPA_URL,SUPA_KEY):null;
+var _user=null;
 var state={examYear:36,subjectIdx:0,filter:'all',search:'',currentQ:0,answers:{},bookmarks:{},resolved:{},examMode:false};
 function saveS(){try{localStorage.setItem('gh',JSON.stringify({a:state.answers,b:state.bookmarks,r:state.resolved}));}catch(e){}}
 function loadS(){try{var s=JSON.parse(localStorage.getItem('gh')||'{}');state.answers=s.a||{};state.bookmarks=s.b||{};state.resolved=s.r||{};}catch(e){}}
@@ -32,6 +36,80 @@ function highlight(s){
                .replace(/(옳은|맞는|올바른|모두 고른|모두고른)/g,'<span style="color:#2563eb;font-weight:700">$1</span>');
 }
 
+function renderNav(){
+  var el=document.getElementById('nav-auth');
+  if(!el)return;
+  if(_user){
+    var name=(_user.user_metadata&&_user.user_metadata.full_name)||(_user.email||'').split('@')[0];
+    el.innerHTML='<span style="font-size:12px;color:#64748b;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+name+'</span><button class="btn-sm" onclick="doLogout()" style="font-size:12px;padding:4px 10px">로그아웃</button>';
+  } else {
+    el.innerHTML='<button class="btn-sm" onclick="loginGoogle()" style="display:flex;align-items:center;gap:4px;font-size:12px;padding:4px 12px">&#x1F510; Google&#xB85C;&#xADF8;&#xC778;</button>';
+  }
+}
+function loginGoogle(){
+  if(!_supa){alert('Supabase 연결 오류');return;}
+  _supa.auth.signInWithOAuth({provider:'google',options:{redirectTo:location.href}});
+}
+function doLogout(){
+  if(!_supa)return;
+  _supa.auth.signOut().then(function(){
+    _user=null;
+    renderNav();
+    renderSidebar();
+  });
+}
+function findQuestion(key){
+  var parts=key.split('_');
+  var si=parseInt(parts[0]);
+  var qn=parseInt(parts[1]);
+  var data=curData();
+  if(!data[si])return null;
+  for(var i=0;i<data[si].questions.length;i++){
+    if(data[si].questions[i].number===qn)return{subj:data[si],q:data[si].questions[i]};
+  }
+  return null;
+}
+function saveRowToSupa(key){
+  if(!_supa||!_user)return;
+  var found=findQuestion(key);
+  if(!found)return;
+  var answerGiven=state.answers[key]||null;
+  var row={
+    user_id:_user.id,
+    year:state.examYear,
+    subject:found.subj.subject,
+    q_num:found.q.number,
+    answer_given:answerGiven,
+    is_correct:answerGiven?(answerGiven===found.q.answer):null,
+    is_bookmarked:!!state.bookmarks[key],
+    is_resolved:!!state.resolved[key],
+    attempt_count:answerGiven?1:0,
+    last_attempted_at:new Date().toISOString()
+  };
+  _supa.from('user_progress').upsert(row,{onConflict:'user_id,year,subject,q_num'}).then(function(r){
+    if(r.error)console.error('Supabase save error:',r.error);
+  });
+}
+function syncFromSupa(){
+  if(!_supa||!_user)return;
+  _supa.from('user_progress').select('*').eq('user_id',_user.id).then(function(result){
+    if(result.error||!result.data)return;
+    result.data.forEach(function(row){
+      var data=EXAM_DATA[row.year];
+      if(!data)return;
+      var si=-1;
+      for(var i=0;i<data.length;i++){if(data[i].subject===row.subject){si=i;break;}}
+      if(si<0)return;
+      var k=si+'_'+row.q_num;
+      if(row.answer_given)state.answers[k]=row.answer_given;
+      if(row.is_bookmarked)state.bookmarks[k]=true;
+      if(row.is_resolved)state.resolved[k]=true;
+    });
+    saveS();
+    renderSidebar();
+    renderMain();
+  });
+}
 function toggleMenu(){
   var sd=document.getElementById('sidebar');
   var ov=document.getElementById('menu-overlay');
@@ -129,9 +207,9 @@ function setSearch(v){
 }
 function goTo(i){state.currentQ=i;renderMain();}
 function nextQ(){var qs=filteredQ();if(state.currentQ<qs.length-1){state.currentQ++;renderMain();}else alert('마지막 문제예요!');}
-function pick(key,c,ans){if(state.answers[key])return;state.answers[key]=c;saveS();renderMain();renderSidebar();}
-function toggleBm(key){state.bookmarks[key]=!state.bookmarks[key];saveS();renderMain();renderSidebar();}
-function resolve(key){state.resolved[key]=true;saveS();var qs=filteredQ();if(state.currentQ>=qs.length)state.currentQ=Math.max(0,qs.length-1);renderMain();renderSidebar();}
+function pick(key,c,ans){if(state.answers[key])return;state.answers[key]=c;saveS();saveRowToSupa(key);renderMain();renderSidebar();}
+function toggleBm(key){state.bookmarks[key]=!state.bookmarks[key];saveS();saveRowToSupa(key);renderMain();renderSidebar();}
+function resolve(key){state.resolved[key]=true;saveS();saveRowToSupa(key);var qs=filteredQ();if(state.currentQ>=qs.length)state.currentQ=Math.max(0,qs.length-1);renderMain();renderSidebar();}
 function showWrong(){
   var d=curData();
   for(var i=0;i<d.length;i++){
@@ -222,8 +300,18 @@ function showScore(cor,done,total,subjectName){
   h+='</div></div>';
   document.body.insertAdjacentHTML('beforeend',h);
 }
+if(_supa){
+  _supa.auth.onAuthStateChange(function(event,session){
+    _user=session?session.user:null;
+    renderNav();
+    if(_user&&(event==='SIGNED_IN'||event==='INITIAL_SESSION')){
+      syncFromSupa();
+    }
+  });
+}
 try {
-  if(typeof EXAM_DATA_36==='undefined'){throw new Error('36í ë°ì´í° ë¡ë ì¤í¨');}
+  if(typeof EXAM_DATA_36==='undefined'){throw new Error('data load failed');}
+  renderNav();
   renderSidebar();
   renderMain();
 } catch(e) {
