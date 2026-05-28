@@ -778,11 +778,33 @@ function wrongCountMb(){
 function showWrongMb(){
   if(!_mbActive){showMyBookList();return;}
   var qs=_mbActive.questions;
-  for(var i=0;i<qs.length;i++){
-    var a=_mbAns[''+i];
-    if(a!==undefined&&a!==qs[i].answer){_mbQ=i;renderMyBook();return;}
-  }
-  alert('오답이 없어요! 🎉');
+  var wrongs=[];
+  for(var i=0;i<qs.length;i++){var a=_mbAns[''+i];if(a!==undefined&&a!==qs[i].answer)wrongs.push({q:qs[i],idx:i,chose:a});}
+  if(!wrongs.length){alert('오답이 없어요! 🎉');return;}
+  var h='<div style="padding:20px;max-width:700px">';
+  h+='<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">';
+  h+='<button onclick="renderMyBook()" style="padding:6px 14px;background:#f1f5f9;border:none;border-radius:8px;font-weight:700;cursor:pointer">← 문제로</button>';
+  h+='<h2 style="font-size:20px;font-weight:800">📕 오답노트 <span style="font-size:14px;color:#ef4444;font-weight:700">'+wrongs.length+'문제</span></h2>';
+  h+='</div>';
+  wrongs.forEach(function(item){
+    var q=item.q;var chose=item.chose;
+    h+='<div style="background:#fff;border:1.5px solid #fecaca;border-radius:12px;margin-bottom:16px;overflow:hidden">';
+    h+='<div style="padding:12px 18px 0"><span style="background:#fef2f2;color:#ef4444;font-size:12px;font-weight:700;padding:3px 9px;border-radius:6px">Q'+q.number+'</span></div>';
+    h+='<div style="padding:10px 18px 14px">';
+    h+='<div style="font-size:14px;font-weight:600;color:#1e293b;margin-bottom:10px;line-height:1.6">'+esc(q.question)+'</div>';
+    if(q.condition)h+='<div style="background:#f8fafc;border-left:3px solid #93c5fd;border-radius:0 8px 8px 0;padding:8px 12px;margin-bottom:10px;font-size:13px;color:#334155;white-space:pre-wrap">'+esc(q.condition)+'</div>';
+    h+='<div style="display:flex;flex-direction:column;gap:5px;margin-bottom:10px">';
+    q.choices.forEach(function(c,ci){
+      var idx=ci+1;var isCorrect=(idx===q.answer);var isChose=(idx===chose);
+      var bg=isCorrect?'border:1.5px solid #22c55e;background:#f0fdf4;color:#166534;font-weight:600':isChose?'border:1.5px solid #ef4444;background:#fef2f2;color:#991b1b':'border:1.5px solid #e2e8f0;color:#475569';
+      h+='<div style="padding:8px 12px;border-radius:8px;font-size:13px;'+bg+'">'+esc(c)+(isCorrect?' ✓':isChose?' ✗':'')+'</div>';
+    });
+    h+='</div>';
+    if(q.explanation)h+='<div style="padding:12px 14px;background:#fffbeb;border-radius:8px;border:1px solid #fde68a;font-size:13px;line-height:1.6;color:#451a03"><div style="font-size:11px;font-weight:700;color:#92400e;margin-bottom:4px">💡 해설</div>'+esc(q.explanation)+'</div>';
+    h+='</div></div>';
+  });
+  h+='</div>';
+  document.getElementById('main').innerHTML=h;
 }
 function showStatsMb(){
   if(!_mbActive){showMyBookList();return;}
@@ -811,7 +833,7 @@ function showStatsMb(){
   h+='</div>';
   document.getElementById('main').innerHTML=h;
 }
-function pickMb(key,c,ans){if(_mbAns[key]!==undefined)return;_mbAns[key]=c;renderMyBook();}
+function pickMb(key,c,ans){if(_mbAns[key]!==undefined)return;_mbAns[key]=c;renderMyBook();renderSidebar();}
 function toggleBmMb(key){_mbBm[key]=!_mbBm[key];renderMyBook();}
 function goToMb(i){_mbQ=i;renderMyBook();}
 function nextMb(){if(!_mbActive)return;if(_mbQ<_mbActive.questions.length-1){_mbQ++;renderMyBook();}else alert('마지막 문제예요!');}
