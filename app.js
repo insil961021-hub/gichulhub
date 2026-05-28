@@ -192,9 +192,7 @@ function renderSidebar(){
   h+='<div class="sidebar-item" onclick="showWrong();closeMenu()">📕 오답노트'+(w>0?'<span class="sidebar-badge">'+w+'</span>':'')+'</div>';
   h+='<div class="sidebar-item" onclick="showStats()">📊 내 통계</div>';
   h+='<div class="sidebar-item" onclick="showPdf();closeMenu()">📥 PDF 다운로드</div>';
-  h+='</div><hr class="sidebar-divider"><div class="sidebar-section"><span class="sidebar-label">내 문제집</span>';
-  h+='<div class="sidebar-item'+(_mbActive?'':'')+'" onclick="showMyBookList();closeMenu()">📚 내 문제집'+(_myBooks.length?'<span class="sidebar-badge" style="background:#7c3aed">'+_myBooks.length+'</span>':'')+'</div>';
-  h+='<div class="sidebar-item" onclick="showMyBookCreate();closeMenu()">✏️ 새로 만들기</div>';
+  h+='</div>';
   h+='</div>';
   document.getElementById('sidebar').innerHTML=h;
 }
@@ -584,6 +582,17 @@ function setExpStyle(style){
   var bc=document.getElementById('mb-style-c');
   if(bf){bf.style.borderColor=style==='friendly'?'#2563eb':'#e2e8f0';bf.style.background=style==='friendly'?'#eff6ff':'#fff';bf.style.color=style==='friendly'?'#2563eb':'#64748b';}
   if(bc){bc.style.borderColor=style==='concise'?'#2563eb':'#e2e8f0';bc.style.background=style==='concise'?'#eff6ff':'#fff';bc.style.color=style==='concise'?'#2563eb':'#64748b';}
+  var box=document.getElementById('prompt-box');
+  if(!box)return;
+  var txt=box.innerText||box.textContent;
+  if(style==='concise'){
+    txt=txt.replace('"explanation": "해설 (친근한 말투, 법령 근거 괄호 표시)"','"explanation": "해설 (핵심 요약, 법령 조항·숫자 위주)"');
+    txt=txt.replace('explanation: 친근한 ~해요 말투, 오답 선택지 1~2개도 간략히','explanation: 핵심 조항/숫자 위주, ~입니다 말투');
+  } else {
+    txt=txt.replace('"explanation": "해설 (핵심 요약, 법령 조항·숫자 위주)"','"explanation": "해설 (친근한 말투, 법령 근거 괄호 표시)"');
+    txt=txt.replace('explanation: 핵심 조항/숫자 위주, ~입니다 말투','explanation: 친근한 ~해요 말투, 오답 선택지 1~2개도 간략히');
+  }
+  box.innerText=txt;
 }
 function showMyBookManual(){
   _mbActive=null;_mbManualQs=[];
@@ -695,7 +704,7 @@ function copyPrompt(){
   var text=el.innerText||el.textContent;
   var styleNote=_mbExpStyle==='concise'?'explanation: 법령 근거 중심으로 간결하게 (예: ~입니다, ~합니다 말투, 핵심 조항/숫자 위주)':'explanation: 친근한 ~해요 말투, 오답 선택지 1~2개도 간략히';
   text=text.replace('explanation: 친근한 ~해요 말투, 오답 선택지 1~2개도 간략히',styleNote);
-  if(navigator.clipboard){navigator.clipboard.writeText(text).then(function(){alert('프롬프트 복사됐어요! 제미나이에 PDF와 함께 붙여넣으세요 :)');});}
+  if(navigator.clipboard){navigator.clipboard.writeText(text).then(function(){alert('프롬프트 복사됐어요! AI에 PDF와 함께 붙여넣으세요 :)');});}
   else{var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);alert('복사됐어요!');}
 }
 function setChoiceCount(n){
@@ -714,7 +723,7 @@ function createMyBook(){
   if(match)jsonStr=match[1].trim();
   var questions;
   try{questions=JSON.parse(jsonStr);}
-  catch(e){errEl.textContent='JSON 형식이 올바르지 않아요. 제미나이 출력을 다시 확인해보세요. ('+e.message+')';errEl.style.display='block';return;}
+  catch(e){errEl.textContent='JSON 형식이 올바르지 않아요. AI 출력을 다시 확인해보세요. ('+e.message+')';errEl.style.display='block';return;}
   if(!Array.isArray(questions)||!questions.length){errEl.textContent='문제 배열이 비어있어요';errEl.style.display='block';return;}
   questions=questions.map(function(q,i){return{number:q.number||(i+1),question:q.question||'',choices:Array.isArray(q.choices)?q.choices:[],answer:q.answer||1,explanation:q.explanation||'',condition:q.condition||''};});
   errEl.style.display='none';
