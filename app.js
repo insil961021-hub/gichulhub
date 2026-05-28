@@ -513,17 +513,7 @@ function showMyBookCreate(){
   h+='</div>';
   h+='<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:16px;margin-bottom:20px">';
   h+='<div style="font-size:13px;font-weight:700;color:#1e40af;margin-bottom:8px">💡 STEP 1 — 제미나이(또는 ChatGPT)에게 아래 프롬프트로 PDF를 파싱해 달라고 하세요</div>';
-  h+='<div id="prompt-box" style="background:#fff;border-radius:8px;padding:12px;font-size:12px;font-family:monospace;color:#334155;line-height:1.7;white-space:pre-wrap">이 PDF의 문제들을 아래 JSON 형식으로 파싱해줘. 각 문제는 배열 원소 하나야.
-[
-  {
-    "number": 1,
-    "question": "문제 텍스트",
-    "choices": ["보기1", "보기2", "보기3", "보기4", "보기5"],
-    "answer": 3,
-    "explanation": "해설 텍스트"
-  }
-]
-정답은 1~5 사이 숫자, choices는 보기 텍스트만(번호 제외), explanation은 간단하게. JSON만 출력해줘.</div>';
+  h+='<div id="prompt-box" style="background:#fff;border-radius:8px;padding:12px;font-size:12px;font-family:monospace;color:#334155;line-height:1.7;white-space:pre-wrap">이 PDF의 문제들을 아래 JSON 형식으로 파싱해줘. 각 문제는 배열 원소 하나야.\n[\n  {\n    "number": 1,\n    "question": "문제 텍스트",\n    "choices": ["보기1", "보기2", "보기3", "보기4", "보기5"],\n    "answer": 3,\n    "explanation": "해설 텍스트"\n  }\n]\n정답은 1~5 사이 숫자, choices는 보기 텍스트만(번호 제외), explanation은 간단하게. JSON만 출력해줘.</div>';
   h+='<button onclick="copyPrompt()" style="margin-top:8px;padding:4px 12px;background:#2563eb;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">📋 프롬프트 복사</button>';
   h+='</div>';
   h+='<div style="margin-bottom:16px">';
