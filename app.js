@@ -219,14 +219,101 @@ function showWrong(){
   }
   alert('오답이 없어요! 🎉');
 }
-function showStats(){
-  var msg='📊 내 통계 ('+state.examYear+'회)\n\n';
-  curData().forEach(function(s,i){
-    var d=s.questions.filter(function(q){return state.answers[i+'_'+q.number];}).length;
-    var c=s.questions.filter(function(q){return state.answers[i+'_'+q.number]===q.answer;}).length;
-    msg+=s.subject+'\n  풀기: '+d+'/'+s.questions.length+' · 정답률: '+(d?Math.round(c/d*100):0)+'%\n\n';
+function goToByNum(num){var qs=filteredQ();for(var i=0;i<qs.length;i++){if(qs[i].number===num){state.currentQ=i;return;}}state.currentQ=0;}
+function resetSubject(i){
+  if(!confirm('이 과목의 모든 풀이 기록을 삭제할까요?'))return;
+  var s=curData()[i];
+  s.questions.forEach(function(q){
+    var k=i+'_'+q.number;
+    delete state.answers[k];delete state.bookmarks[k];delete state.resolved[k];
+    if(_supa&&_user){_supa.from('user_progress').delete().eq('user_id',_user.id).eq('year',state.examYear).eq('subject',s.subject).eq('q_num',q.number).then(function(){});}
   });
-  alert(msg);
+  saveS();showStats();
+}
+function saveSessionToSupa(year,subject,cor,wrongCount,total,wrongNums){
+  if(!_supa||!_user)return;
+  _supa.from('study_sessions').insert({user_id:_user.id,year:year,subject:subject,correct:cor,wrong:wrongCount,total:total,wrong_questions:wrongNums}).then(function(r){if(r.error)console.error('Session save error:',r.error);});
+}
+function deleteSession(id){
+  if(!confirm('이 기록을 삭제할까요?'))return;
+  if(!_supa||!_user)return;
+  _supa.from('study_sessions').delete().eq('id',id).eq('user_id',_user.id).then(function(){showHistory();});
+}
+function showHistory(){
+  var h='<div style="padding:20px;max-width:700px">';
+  h+='<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">';
+  h+='<button onclick="showStats()" style="padding:6px 14px;background:#f1f5f9;border:none;border-radius:8px;font-weight:700;cursor:pointer">← 통계로</button>';
+  h+='<h2 style="font-size:20px;font-weight:800">📋 시험 기록</h2></div>';
+  if(!_supa||!_user){h+='<div style="text-align:center;padding:40px;color:#94a3b8">로그인하면 기록을 볼 수 있어요</div></div>';document.getElementById('main').innerHTML=h;return;}
+  h+='<div id="history-list"><div style="text-align:center;padding:40px;color:#94a3b8">불러오는 중...</div></div></div>';
+  document.getElementById('main').innerHTML=h;
+  _supa.from('study_sessions').select('*').eq('user_id',_user.id).order('played_at',{ascending:false}).limit(50).then(function(result){
+    var el=document.getElementById('history-list');if(!el)return;
+    if(result.error||!result.data||!result.data.length){el.innerHTML='<div style="text-align:center;padding:40px;color:#94a3b8">아직 시험 기록이 없어요<br><small>시험모드 → 채점하기를 해보세요!</small></div>';return;}
+    var lh='';
+    result.data.forEach(function(row){
+      var score=Math.round(row.correct/row.total*100);
+      var d=new Date(row.played_at);
+      var dateStr=(d.getMonth()+1)+'월 '+d.getDate()+'일 '+d.getHours()+':'+String(d.getMinutes()).padStart(2,'0');
+      var emoji=score>=80?'🎉':score>=60?'👍':'💪';
+      var wrongList=row.wrong_questions?row.wrong_questions.join(', '):'-';
+      lh+='<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:10px">';
+      lh+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">';
+      lh+='<span style="font-size:20px">'+emoji+'</span>';
+      lh+='<div style="flex:1"><div style="font-size:14px;font-weight:700;color:#1e293b">'+row.year+'회 '+row.subject+'</div>';
+      lh+='<div style="font-size:12px;color:#94a3b8">'+dateStr+'</div></div>';
+      lh+='<div style="text-align:right"><div style="font-size:24px;font-weight:900;color:#2563eb">'+score+'<span style="font-size:14px">점</span></div>';
+      lh+='<div style="font-size:12px;color:#64748b">'+row.correct+'/'+row.total+'</div></div>';
+      lh+='<button onclick="deleteSession(\''+row.id+'\')" style="padding:4px 8px;background:#fef2f2;color:#ef4444;border:1.5px solid #fecaca;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">삭제</button>';
+      lh+='</div>';
+      if(row.wrong>0){lh+='<div style="font-size:12px;color:#ef4444;background:#fef2f2;padding:6px 10px;border-radius:6px">❌ 틀린 문제: Q'+wrongList+'</div>';}
+      lh+='</div>';
+    });
+    el.innerHTML=lh;
+  });
+}
+function showStats(){
+  var yr=state.examYear;
+  var d=curData();
+  var h='<div style="padding:20px;max-width:700px">';
+  h+='<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">';
+  h+='<button onclick="renderMain()" style="padding:6px 14px;background:#f1f5f9;border:none;border-radius:8px;font-weight:700;cursor:pointer">← 돌아가기</button>';
+  h+='<h2 style="font-size:20px;font-weight:800;color:#1e293b">📊 내 통계</h2>';
+  h+='<button onclick="showHistory()" style="margin-left:auto;padding:6px 14px;background:#eff6ff;color:#2563eb;border:1.5px solid #bfdbfe;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">📋 시험 기록</button>';
+  h+='</div>';
+  h+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">';
+  [36,35,34,33,32,31,30].forEach(function(y){
+    h+='<button onclick="state.examYear='+y+';showStats()" style="padding:4px 12px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid '+(y===yr?'#2563eb':'#e2e8f0')+';background:'+(y===yr?'#eff6ff':'#fff')+';color:'+(y===yr?'#2563eb':'#64748b')+'">'+y+'회</button>';
+  });
+  h+='</div>';
+  d.forEach(function(s,i){
+    var done=s.questions.filter(function(q){return state.answers[i+'_'+q.number];}).length;
+    var cor=s.questions.filter(function(q){return state.answers[i+'_'+q.number]===q.answer;}).length;
+    var wrongQs=s.questions.filter(function(q){var k=i+'_'+q.number;return state.answers[k]&&state.answers[k]!==q.answer&&!state.resolved[k];});
+    var pct=s.questions.length?Math.round(done/s.questions.length*100):0;
+    var acc=done?Math.round(cor/done*100):0;
+    h+='<div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:18px;margin-bottom:12px">';
+    h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">';
+    h+='<div><span style="font-size:14px;font-weight:700;color:#1e293b">'+s.subject+'</span><span style="font-size:12px;color:#64748b;margin-left:8px">'+done+'/'+s.questions.length+'문제</span></div>';
+    h+='<button onclick="resetSubject('+i+')" style="padding:4px 12px;background:#fef2f2;color:#ef4444;border:1.5px solid #fecaca;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">🔄 다시 풀기</button>';
+    h+='</div>';
+    h+='<div style="background:#f1f5f9;border-radius:8px;height:8px;overflow:hidden;margin-bottom:8px"><div style="height:100%;background:linear-gradient(90deg,#2563eb,#60a5fa);border-radius:8px;width:'+pct+'%"></div></div>';
+    h+='<div style="display:flex;gap:16px;font-size:13px;margin-bottom:'+(wrongQs.length?'10px':'0')+'">';
+    h+='<span>✅ 정답 <b style="color:#16a34a">'+cor+'</b></span>';
+    h+='<span>❌ 오답 <b style="color:#ef4444">'+wrongQs.length+'</b></span>';
+    h+='<span>⬜ 미풀이 <b style="color:#94a3b8">'+(s.questions.length-done)+'</b></span>';
+    h+='<span style="margin-left:auto">정답률 <b style="color:#2563eb">'+acc+'%</b></span></div>';
+    if(wrongQs.length){
+      h+='<div style="margin-top:6px"><span style="font-size:12px;color:#64748b;font-weight:600">틀린 문제: </span>';
+      wrongQs.forEach(function(q){
+        h+='<button onclick="selSubj('+i+');state.filter=\'all\';goToByNum('+q.number+');renderMain()" style="display:inline-block;min-width:32px;height:26px;padding:0 4px;margin:2px;border-radius:6px;background:#fef2f2;border:1.5px solid #fecaca;color:#ef4444;font-size:12px;font-weight:700;cursor:pointer">'+q.number+'</button>';
+      });
+      h+='</div>';
+    }
+    h+='</div>';
+  });
+  h+='</div>';
+  document.getElementById('main').innerHTML=h;
 }
 function showPdf(){
   var pdfs=[
@@ -281,6 +368,8 @@ function gradeExam(){
   var s=subj();
   var done=s.questions.filter(function(q){return state.answers[qk(q)];}).length;
   var cor=s.questions.filter(function(q){return state.answers[qk(q)]===q.answer;}).length;
+  var wrongNums=s.questions.filter(function(q){return state.answers[qk(q)]&&state.answers[qk(q)]!==q.answer;}).map(function(q){return q.number;});
+  saveSessionToSupa(state.examYear,s.subject,cor,wrongNums.length,s.questions.length,wrongNums);
   renderSidebar();
   renderMain();
   showScore(cor,done,s.questions.length,s.subject);
@@ -296,7 +385,10 @@ function showScore(cor,done,total,subjectName){
   h+='<h2 style="font-size:42px;font-weight:900;color:#2563eb;margin:8px 0">'+score+'<span style="font-size:22px">&#xC810;</span></h2>';
   h+='<p style="font-size:16px;color:#475569;margin:4px 0">&#x1F3AF; '+cor+' / '+total+' &#xC815;&#xB2F5;</p>';
   if(done<total){h+='<p style="font-size:12px;color:#f59e0b;margin-top:6px">&#x26A0;&#xFE0F; &#xBBF8;&#xD480;&#xC774; '+(total-done)+'&#xBB38;&#xC81C; &#xD3EC;&#xD568;</p>';}
-  h+='<button onclick="closeScore()" style="margin-top:24px;padding:12px 36px;background:#2563eb;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;width:100%">&#xD655;&#xC778;</button>';
+  h+='<div style="display:flex;gap:8px;margin-top:20px">';
+  h+='<button onclick="closeScore()" style="flex:1;padding:12px;background:#f1f5f9;color:#475569;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer">확인</button>';
+  h+='<button onclick="closeScore();showStats()" style="flex:1;padding:12px;background:#2563eb;color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer">📊 통계 보기</button>';
+  h+='</div>';
   h+='</div></div>';
   document.body.insertAdjacentHTML('beforeend',h);
 }
