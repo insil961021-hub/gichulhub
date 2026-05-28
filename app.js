@@ -5,9 +5,13 @@ var _supa=(window.supabase&&window.supabase.createClient)?window.supabase.create
 var _user=null;
 var _dbQuestions={};
 var state={examYear:36,subjectIdx:0,filter:'all',search:'',currentQ:0,answers:{},bookmarks:{},resolved:{},examMode:false};
+var _myBooks=[];var _mbActive=null;var _mbQ=0;var _mbAns={};var _mbBm={};var _mbChoiceCount=5;
 function saveS(){try{localStorage.setItem('gh',JSON.stringify({a:state.answers,b:state.bookmarks,r:state.resolved}));}catch(e){}}
 function loadS(){try{var s=JSON.parse(localStorage.getItem('gh')||'{}');state.answers=s.a||{};state.bookmarks=s.b||{};state.resolved=s.r||{};}catch(e){}}
 loadS();
+function loadMyBooksLocal(){try{_myBooks=JSON.parse(localStorage.getItem('gh_mybooks')||'[]');}catch(e){_myBooks=[];}}
+function saveMyBooksLocal(){try{localStorage.setItem('gh_mybooks',JSON.stringify(_myBooks));}catch(e){}}
+loadMyBooksLocal();
 function curData(){
   var base=EXAM_DATA[state.examYear]||EXAM_DATA_36;
   var ydb=_dbQuestions[state.examYear];
@@ -133,6 +137,7 @@ function syncFromSupa(){
     renderSidebar();
     renderMain();
   });
+  loadMyBooks();
 }
 function toggleMenu(){
   var sd=document.getElementById('sidebar');
@@ -161,6 +166,9 @@ function renderSidebar(){
   h+='<div class="sidebar-item" onclick="showWrong();closeMenu()">📕 오답노트'+(w>0?'<span class="sidebar-badge">'+w+'</span>':'')+'</div>';
   h+='<div class="sidebar-item" onclick="showStats()">📊 내 통계</div>';
   h+='<div class="sidebar-item" onclick="showPdf();closeMenu()">📥 PDF 다운로드</div>';
+  h+='</div><hr class="sidebar-divider"><div class="sidebar-section"><span class="sidebar-label">내 문제집</span>';
+  h+='<div class="sidebar-item'+(_mbActive?'':'')+'" onclick="showMyBookList();closeMenu()">📚 내 문제집'+(_myBooks.length?'<span class="sidebar-badge" style="background:#7c3aed">'+_myBooks.length+'</span>':'')+'</div>';
+  h+='<div class="sidebar-item" onclick="showMyBookCreate();closeMenu()">✏️ 새로 만들기</div>';
   h+='</div>';
   document.getElementById('sidebar').innerHTML=h;
 }
@@ -217,8 +225,8 @@ function renderMain(){
   document.getElementById('main').innerHTML=h;
 }
 
-function selYear(y){state.examYear=y;state.subjectIdx=0;state.currentQ=0;state.filter='all';state.search='';renderSidebar();renderMain();closeMenu();}
-function selSubj(i){state.subjectIdx=i;state.currentQ=0;state.filter='all';state.search='';renderSidebar();renderMain();closeMenu();}
+function selYear(y){_mbActive=null;state.examYear=y;state.subjectIdx=0;state.currentQ=0;state.filter='all';state.search='';renderSidebar();renderMain();closeMenu();}
+function selSubj(i){_mbActive=null;state.subjectIdx=i;state.currentQ=0;state.filter='all';state.search='';renderSidebar();renderMain();closeMenu();}
 function setFilter(f){state.filter=f;state.currentQ=0;renderMain();}
 var _sTimer=null;
 function setSearch(v){
@@ -417,6 +425,197 @@ function showScore(cor,done,total,subjectName){
   h+='</div></div>';
   document.body.insertAdjacentHTML('beforeend',h);
 }
+
+// ===== 내 문제집 기능 =====
+function loadMyBooks(){
+  loadMyBooksLocal();
+  if(!_supa||!_user){renderSidebar();return;}
+  _supa.from('custom_quizbooks').select('*').eq('user_id',_user.id).order('created_at',{ascending:false}).then(function(result){
+    if(!result.error&&result.data){
+      _myBooks=result.data.map(function(r){return{id:r.id,title:r.title,choice_count:r.choice_count||5,questions:r.questions,created_at:r.created_at};});
+      saveMyBooksLocal();
+    }
+    renderSidebar();
+  });
+}
+function saveNewBook(title,choiceCount,questions){
+  var id=Date.now().toString();
+  var book={id:id,title:title,choice_count:choiceCount,questions:questions,created_at:new Date().toISOString()};
+  _myBooks.unshift(book);saveMyBooksLocal();
+  if(_supa&&_user){
+    _supa.from('custom_quizbooks').insert({id:id,user_id:_user.id,title:title,choice_count:choiceCount,questions:questions}).then(function(r){if(r.error)console.error('Book save:',r.error);});
+  }
+  renderSidebar();openMyBook(id);
+}
+function deleteMyBook(id){
+  if(!confirm('이 문제집을 삭제할까요?'))return;
+  _myBooks=_myBooks.filter(function(b){return b.id!==id;});saveMyBooksLocal();
+  if(_supa&&_user){_supa.from('custom_quizbooks').delete().eq('id',id).eq('user_id',_user.id).then(function(){});}
+  renderSidebar();showMyBookList();
+}
+function openMyBook(id){
+  var book=null;
+  for(var i=0;i<_myBooks.length;i++){if(_myBooks[i].id===id){book=_myBooks[i];break;}}
+  if(!book)return;
+  _mbActive=book;_mbQ=0;_mbAns={};_mbBm={};
+  renderSidebar();renderMyBook();closeMenu();
+}
+function downloadMyBook(id){
+  var book=null;
+  for(var i=0;i<_myBooks.length;i++){if(_myBooks[i].id===id){book=_myBooks[i];break;}}
+  if(!book)return;
+  var data=JSON.stringify(book.questions,null,2);
+  var blob=new Blob([data],{type:'application/json'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');a.href=url;a.download=book.title+'.json';a.click();
+  URL.revokeObjectURL(url);
+}
+function showMyBookList(){
+  _mbActive=null;renderSidebar();
+  var h='<div style="padding:20px;max-width:700px">';
+  h+='<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">';
+  h+='<h2 style="font-size:20px;font-weight:800">📚 내 문제집</h2>';
+  h+='<button onclick="showMyBookCreate()" style="margin-left:auto;padding:7px 16px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">+ 새로 만들기</button>';
+  h+='</div>';
+  if(!_myBooks.length){
+    h+='<div style="text-align:center;padding:60px 20px;color:#94a3b8"><div style="font-size:48px">📝</div>';
+    h+='<p style="margin-top:12px;font-size:15px;font-weight:600">아직 만든 문제집이 없어요</p>';
+    h+='<p style="font-size:13px;margin-top:8px;line-height:1.6">제미나이에서 JSON을 받아서 붙여넣으면<br>기출허브 형식으로 바로 만들어드려요!</p>';
+    h+='<button onclick="showMyBookCreate()" style="margin-top:16px;padding:10px 24px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">+ 첫 문제집 만들기</button>';
+    h+='</div>';
+  } else {
+    _myBooks.forEach(function(book){
+      var d=new Date(book.created_at);
+      var dateStr=(d.getMonth()+1)+'월 '+d.getDate()+'일';
+      h+='<div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:10px;display:flex;align-items:center;gap:12px">';
+      h+='<div style="flex:1;cursor:pointer" onclick="openMyBook(''+book.id+'')">';
+      h+='<div style="font-size:15px;font-weight:700;color:#1e293b">'+esc(book.title)+'</div>';
+      h+='<div style="font-size:12px;color:#64748b;margin-top:2px">'+book.questions.length+'문제 · '+book.choice_count+'지선다 · '+dateStr+'</div>';
+      h+='</div>';
+      h+='<button onclick="downloadMyBook(''+book.id+'')" style="padding:5px 10px;background:#f0fdf4;color:#16a34a;border:1.5px solid #86efac;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">⬇ JSON</button>';
+      h+='<button onclick="deleteMyBook(''+book.id+'')" style="padding:5px 10px;background:#fef2f2;color:#ef4444;border:1.5px solid #fecaca;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">삭제</button>';
+      h+='</div>';
+    });
+  }
+  if(!_user){
+    h+='<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:12px 16px;font-size:13px;color:#92400e;margin-top:12px">';
+    h+='⚠️ 로그인하면 클라우드에 저장돼요. 지금은 이 기기에만 저장됩니다.</div>';
+  }
+  h+='</div>';
+  document.getElementById('main').innerHTML=h;
+}
+function showMyBookCreate(){
+  _mbActive=null;renderSidebar();
+  var h='<div style="padding:20px;max-width:700px">';
+  h+='<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">';
+  h+='<button onclick="showMyBookList()" style="padding:6px 14px;background:#f1f5f9;border:none;border-radius:8px;font-weight:700;cursor:pointer">← 목록으로</button>';
+  h+='<h2 style="font-size:20px;font-weight:800">📝 새 문제집 만들기</h2>';
+  h+='</div>';
+  h+='<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:16px;margin-bottom:20px">';
+  h+='<div style="font-size:13px;font-weight:700;color:#1e40af;margin-bottom:8px">💡 STEP 1 — 제미나이(또는 ChatGPT)에게 아래 프롬프트로 PDF를 파싱해 달라고 하세요</div>';
+  h+='<div id="prompt-box" style="background:#fff;border-radius:8px;padding:12px;font-size:12px;font-family:monospace;color:#334155;line-height:1.7;white-space:pre-wrap">이 PDF의 문제들을 아래 JSON 형식으로 파싱해줘. 각 문제는 배열 원소 하나야.
+[
+  {
+    "number": 1,
+    "question": "문제 텍스트",
+    "choices": ["보기1", "보기2", "보기3", "보기4", "보기5"],
+    "answer": 3,
+    "explanation": "해설 텍스트"
+  }
+]
+정답은 1~5 사이 숫자, choices는 보기 텍스트만(번호 제외), explanation은 간단하게. JSON만 출력해줘.</div>';
+  h+='<button onclick="copyPrompt()" style="margin-top:8px;padding:4px 12px;background:#2563eb;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">📋 프롬프트 복사</button>';
+  h+='</div>';
+  h+='<div style="margin-bottom:16px">';
+  h+='<label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:6px">문제집 제목</label>';
+  h+='<input type="text" id="mb-title" placeholder="예: 민법 핵심 100제" style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;font-family:inherit">';
+  h+='</div>';
+  h+='<div style="margin-bottom:16px">';
+  h+='<label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:6px">선다 수</label>';
+  h+='<div style="display:flex;gap:8px">';
+  h+='<button id="mb-ch-4" onclick="setChoiceCount(4)" style="padding:8px 20px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;border:2px solid #e2e8f0;background:#fff;color:#64748b">4지선다</button>';
+  h+='<button id="mb-ch-5" onclick="setChoiceCount(5)" style="padding:8px 20px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;border:2px solid #2563eb;background:#eff6ff;color:#2563eb">5지선다</button>';
+  h+='</div></div>';
+  h+='<div style="margin-bottom:16px">';
+  h+='<label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:6px">STEP 2 — 제미나이 출력 JSON을 아래에 붙여넣기</label>';
+  h+='<textarea id="mb-json" rows="12" placeholder="[ { &quot;number&quot;: 1, &quot;question&quot;: &quot;...&quot;, &quot;choices&quot;: [...], &quot;answer&quot;: 3, &quot;explanation&quot;: &quot;...&quot; } ]" style="width:100%;padding:12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;font-family:monospace;resize:vertical"></textarea>';
+  h+='</div>';
+  h+='<div id="mb-error" style="color:#ef4444;font-size:13px;margin-bottom:12px;display:none"></div>';
+  h+='<div style="display:flex;gap:8px;justify-content:flex-end">';
+  h+='<button onclick="showMyBookList()" style="padding:9px 20px;background:#f1f5f9;color:#475569;border:none;border-radius:8px;font-weight:700;cursor:pointer">취소</button>';
+  h+='<button onclick="createMyBook()" style="padding:9px 20px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer">📚 문제집 만들기</button>';
+  h+='</div></div>';
+  document.getElementById('main').innerHTML=h;
+  _mbChoiceCount=5;
+}
+function copyPrompt(){
+  var el=document.getElementById('prompt-box');
+  if(!el)return;
+  var text=el.innerText||el.textContent;
+  if(navigator.clipboard){navigator.clipboard.writeText(text).then(function(){alert('프롬프트 복사됐어요! 제미나이에 PDF와 함께 붙여넣으세요 :)');});}
+  else{var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);alert('복사됐어요!');}
+}
+function setChoiceCount(n){
+  _mbChoiceCount=n;
+  var b4=document.getElementById('mb-ch-4');var b5=document.getElementById('mb-ch-5');
+  if(b4){b4.style.borderColor=n===4?'#2563eb':'#e2e8f0';b4.style.background=n===4?'#eff6ff':'#fff';b4.style.color=n===4?'#2563eb':'#64748b';}
+  if(b5){b5.style.borderColor=n===5?'#2563eb':'#e2e8f0';b5.style.background=n===5?'#eff6ff':'#fff';b5.style.color=n===5?'#2563eb':'#64748b';}
+}
+function createMyBook(){
+  var title=(document.getElementById('mb-title').value||'').trim();
+  var jsonStr=(document.getElementById('mb-json').value||'').trim();
+  var errEl=document.getElementById('mb-error');
+  if(!title){errEl.textContent='제목을 입력해주세요';errEl.style.display='block';return;}
+  if(!jsonStr){errEl.textContent='JSON을 붙여넣어주세요';errEl.style.display='block';return;}
+  var match=jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if(match)jsonStr=match[1].trim();
+  var questions;
+  try{questions=JSON.parse(jsonStr);}
+  catch(e){errEl.textContent='JSON 형식이 올바르지 않아요. 제미나이 출력을 다시 확인해보세요. ('+e.message+')';errEl.style.display='block';return;}
+  if(!Array.isArray(questions)||!questions.length){errEl.textContent='문제 배열이 비어있어요';errEl.style.display='block';return;}
+  questions=questions.map(function(q,i){return{number:q.number||(i+1),question:q.question||'',choices:Array.isArray(q.choices)?q.choices:[],answer:q.answer||1,explanation:q.explanation||'',condition:q.condition||''};});
+  errEl.style.display='none';
+  saveNewBook(title,_mbChoiceCount||5,questions);
+}
+function renderMyBook(){
+  if(!_mbActive){showMyBookList();return;}
+  var qs=_mbActive.questions;
+  if(!qs||!qs.length){document.getElementById('main').innerHTML='<div style="padding:20px">문제가 없어요</div>';return;}
+  if(_mbQ>=qs.length)_mbQ=0;
+  var q=qs[_mbQ];var key=''+_mbQ;
+  var chosen=_mbAns[key];var isAns=chosen!==undefined;var isBm=!!_mbBm[key];
+  var half=Math.ceil(qs.length/2);var r1='',r2='';
+  qs.forEach(function(qq,i){
+    var a=_mbAns[''+i];
+    var cls='qn'+(i===_mbQ?' current':a!==undefined&&a===qq.answer?' answered':a!==undefined?' wrong-q':'');
+    var btn='<button class="'+cls+'" onclick="goToMb('+i+')">'+qq.number+'</button>';
+    if(i<half)r1+=btn;else r2+=btn;
+  });
+  var h='<div class="page-header">';
+  h+='<div style="display:flex;align-items:center;gap:10px">';
+  h+='<button onclick="showMyBookList()" style="padding:5px 12px;background:#f1f5f9;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">← 목록</button>';
+  h+='<h1 style="font-size:18px;font-weight:800;color:#1e293b">'+esc(_mbActive.title)+'</h1></div>';
+  h+='<p style="margin-top:4px;font-size:13px;color:#64748b">'+qs.length+'문제 · '+_mbActive.choice_count+'지선다</p></div>';
+  h+='<div class="q-card"><div class="q-header"><span class="q-num">Q'+q.number+'</span><div class="q-actions">';
+  h+='<button class="btn-icon'+(isBm?' bookmarked':'')+'" onclick="toggleBmMb(''+key+'')">'+(isBm?'★':'☆')+'</button>';
+  h+='</div></div><div class="q-body"><div class="q-text">'+highlight(q.question)+'</div>';
+  if(q.condition)h+='<div class="q-condition">'+esc(q.condition)+'</div>';
+  h+='<div class="choices">';
+  q.choices.forEach(function(c,i){
+    var idx=i+1;
+    var cls='choice'+(isAns?(idx===q.answer?' correct':idx===chosen?' wrong':''):'');
+    h+='<button class="'+cls+'" onclick="pickMb(''+key+'','+idx+','+q.answer+')"'+(isAns?' disabled':'')+'>'+esc(c)+'</button>';
+  });
+  h+='</div>';
+  h+='<div class="explanation'+(isAns?' show':'')+'"><div class="explanation-title">💡 해설</div>'+esc(q.explanation)+'</div>';
+  h+='</div><div class="q-footer"><div class="q-nums"><div class="q-nums-row">'+r1+'</div><div class="q-nums-row">'+r2+'</div></div>';
+  h+='<button class="btn-next" onclick="nextMb()">다음 →</button></div></div>';
+  document.getElementById('main').innerHTML=h;
+}
+function pickMb(key,c,ans){if(_mbAns[key]!==undefined)return;_mbAns[key]=c;renderMyBook();}
+function toggleBmMb(key){_mbBm[key]=!_mbBm[key];renderMyBook();}
+function goToMb(i){_mbQ=i;renderMyBook();}
+function nextMb(){if(!_mbActive)return;if(_mbQ<_mbActive.questions.length-1){_mbQ++;renderMyBook();}else alert('마지막 문제예요!');}
 if(_supa){
   _supa.auth.onAuthStateChange(function(event,session){
     _user=session?session.user:null;
@@ -433,5 +632,4 @@ try {
   renderSidebar();
   renderMain();
 } catch(e) {
-  document.getElementById('main').innerHTML='<div style="text-align:center;padding:60px 20px"><div style="font-size:48px">&#x1F625;</div><p style="font-size:16px;font-weight:700;color:#1e293b;margin:16px 0 8px">&#xB370;&#xC774;&#xD130;&#xB97C; &#xBD88;&#xB7EC;&#xC624;&#xC9C0; &#xBABB;&#xD588;&#xC5B4;&#xC694;</p><p style="font-size:13px;color:#64748b;margin-bottom:20px">&#xD398;&#xC774;&#xC9C0;&#xB97C; &#xC0C8;&#xB85C;&#xACE0;&#xCE68; &#xD574;&#xC8FC;&#xC138;&#xC694;</p><button onclick="location.reload()" style="padding:10px 24px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">&#xC0C8;&#xB85C;&#xACE0;&#xCE68;</button></div>';
-}
+  document.getElementById('main').innerHTML='<div style="text-align:center;padding:60px 20px"><div style="font-size:48px">&#x1F625;</div><p style="font-size:16px;font-weight:700;color:#1e293b;margin:16px 0 8px">&#xB370;&#xC774;&#xD130;&#xB97C; &#xBD88;&#xB7EC;&#xC624;&#xC9C0; &#xBABB;&#xD588;&#xC5B4;&#xC694;</p><p style="font-size:13px;color:#64748b;margin-bottom:20px">&#xD398;&#xC774;&#xC9C0;&#xB97C; &#xC0C8;&#xB85C;&#xACE0;&#xCE68; &#xD574;&#xC8FC;&#xC138;&#xC694;</p><button onclic

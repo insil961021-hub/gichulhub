@@ -7,7 +7,7 @@ if (Test-Path $lockFile) {
 
 git add exam_data.js exam_data_35.js exam_data_34.js exam_data_33.js exam_data_32.js exam_data_31.js exam_data_30.js app.js index.html about.html privacy.html sitemap.xml terms.html admin.html
 
-git commit -m "개정 배지 기능 + 관리자 이메일 수정"
+git commit -m "내 문제집 기능 + 개정 배지 + 파비콘"
 
 git push origin main
 
