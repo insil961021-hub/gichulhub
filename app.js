@@ -6,6 +6,7 @@ var _user=null;
 var _dbQuestions={};
 var state={examYear:36,subjectIdx:0,filter:'all',search:'',currentQ:0,answers:{},bookmarks:{},resolved:{},examMode:false};
 var _myBooks=[];var _mbActive=null;var _mbQ=0;var _mbAns={};var _mbBm={};var _mbChoiceCount=5;
+var _navMode='exam';var _mbExpStyle='friendly';var _mbManualQs=[];
 function saveS(){try{localStorage.setItem('gh',JSON.stringify({a:state.answers,b:state.bookmarks,r:state.resolved}));}catch(e){}}
 function loadS(){try{var s=JSON.parse(localStorage.getItem('gh')||'{}');state.answers=s.a||{};state.bookmarks=s.b||{};state.resolved=s.r||{};}catch(e){}}
 loadS();
@@ -153,7 +154,7 @@ function closeMenu(){
 }
 
 function navTabExam(){
-  _mbActive=null;
+  _mbActive=null;_navMode='exam';
   var t1=document.getElementById('nav-tab-exam');
   var t2=document.getElementById('nav-tab-studio');
   if(t1){t1.className='nav-tab active';}
@@ -161,6 +162,7 @@ function navTabExam(){
   renderSidebar();renderMain();
 }
 function navTabStudio(){
+  _navMode='studio';
   var t1=document.getElementById('nav-tab-exam');
   var t2=document.getElementById('nav-tab-studio');
   if(t1){t1.className='nav-tab';}
@@ -168,6 +170,15 @@ function navTabStudio(){
   showMyBookList();
 }
 function renderSidebar(){
+  if(_navMode==='studio'){
+    var h='<div class="sidebar-close-btn" onclick="closeMenu()"><span style="font-size:20px">✕</span> 닫기</div>';
+    h+='<div class="sidebar-section"><span class="sidebar-label">문제 스튜디오</span><div style="font-size:11px;color:#94a3b8;padding:2px 4px 6px;line-height:1.4">내가 직접 만드는 문제집</div>';
+    h+='<div class="sidebar-item" onclick="showMyBookList();closeMenu()">📚 내 문제집'+(_myBooks.length?'<span class="sidebar-badge" style="background:#7c3aed">'+_myBooks.length+'</span>':'')+'</div>';
+    h+='<div class="sidebar-item" onclick="showMyBookCreate();closeMenu()">✏️ 새로 만들기</div>';
+    h+='</div>';
+    document.getElementById('sidebar').innerHTML=h;
+    return;
+  }
   var w=wrongCount();
   var h='<div class="sidebar-close-btn" onclick="closeMenu()"><span style="font-size:20px">✕</span> 닫기</div>';
   h+='<div class="sidebar-section"><span class="sidebar-label">회차</span><div class="round-tabs">';
@@ -495,7 +506,7 @@ function showMyBookList(){
   if(!_myBooks.length){
     h+='<div style="text-align:center;padding:60px 20px;color:#94a3b8"><div style="font-size:48px">📝</div>';
     h+='<p style="margin-top:12px;font-size:15px;font-weight:600">아직 만든 문제집이 없어요</p>';
-    h+='<p style="font-size:13px;margin-top:8px;line-height:1.6">제미나이에서 JSON을 받아서 붙여넣으면<br>기출허브 형식으로 바로 만들어드려요!</p>';
+    h+='<p style="font-size:13px;margin-top:8px;line-height:1.6">AI 또는 직접 입력으로<br>나만의 문제집을 만들어보세요!</p>';
     h+='<button onclick="showMyBookCreate()" style="margin-top:16px;padding:10px 24px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">+ 첫 문제집 만들기</button>';
     h+='</div>';
   } else {
@@ -525,9 +536,13 @@ function showMyBookCreate(){
   h+='<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">';
   h+='<button onclick="showMyBookList()" style="padding:6px 14px;background:#f1f5f9;border:none;border-radius:8px;font-weight:700;cursor:pointer">← 목록으로</button>';
   h+='<h2 style="font-size:20px;font-weight:800">📝 새 문제집 만들기</h2>';
+  h+='<div style="margin-left:auto;display:flex;gap:6px">';
+  h+='<button onclick="showMyBookCreate()" style="padding:5px 12px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;border:2px solid #2563eb;background:#eff6ff;color:#2563eb">🤖 AI로 만들기</button>';
+  h+='<button onclick="showMyBookManual()" style="padding:5px 12px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;border:2px solid #e2e8f0;background:#fff;color:#64748b">✍️ 직접 입력</button>';
+  h+='</div>';
   h+='</div>';
   h+='<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:16px;margin-bottom:20px">';
-  h+='<div style="font-size:13px;font-weight:700;color:#1e40af;margin-bottom:8px">💡 STEP 1 — AI에게 아래 프롬프트와 함께 PDF를 전달하세요</div>';
+  h+='<div style="font-size:13px;font-weight:700;color:#1e40af;margin-bottom:8px">💡 STEP 1 — 기출문제 PDF를 아래 프롬프트와 함께 AI에 전달하세요</div>';
   h+='<div id="prompt-box" style="background:#fff;border-radius:8px;padding:12px;font-size:12px;font-family:monospace;color:#334155;line-height:1.7;white-space:pre-wrap;max-height:180px;overflow:hidden;transition:max-height 0.3s">아래 PDF를 JSON 배열로 변환해줘. JSON만 출력.\n\n과목명: [과목명]  회차: [제N회]  연도: [YYYY]  교시: [1 or 2]\n\n[{\n  "number": 41,\n  "question": "문제 텍스트",\n  "condition": "ㄱ. ...\nㄴ. ... (조건 없으면 null)",\n  "choices": ["① ...", "② ...", "③ ...", "④ ...", "⑤ ..."],\n  "answer": 3,\n  "explanation": "해설 (친근한 말투, 법령 근거 괄호 표시)",\n  "hasImage": false\n}]\n\n[규칙] number: 시험지 번호 그대로 / question: 본문만, 조건은 condition에 분리 /\nchoices: 번호 기호(①②③) 포함, 원문 그대로 / answer: 정답 숫자(추측 금지) /\nexplanation: 친근한 ~해요 말투, 오답 선택지 1~2개도 간략히 / hasImage: 그림·그래프 필수 문제만 true /\n전 문제 빠짐없이 완성된 형태로 출력</div>';
   h+='<div style="display:flex;gap:8px;margin-top:8px;align-items:center">';
   h+='<button id="btn-prompt-toggle" onclick="togglePrompt()" style="padding:4px 10px;background:#f1f5f9;color:#475569;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">▼ 전체 보기</button>';
@@ -545,7 +560,14 @@ function showMyBookCreate(){
   h+='<button id="mb-ch-5" onclick="setChoiceCount(5)" style="padding:8px 20px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;border:2px solid #2563eb;background:#eff6ff;color:#2563eb">5지선다</button>';
   h+='</div></div>';
   h+='<div style="margin-bottom:16px">';
-  h+='<label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:6px">STEP 2 — AI 출력 결과를 아래에 붙여넣기</label>';
+  h+='<div style="margin-bottom:16px">';
+  h+='<label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:6px">해설 스타일</label>';
+  h+='<div style="display:flex;gap:8px">';
+  h+='<button id="mb-style-f" onclick="setExpStyle(\'friendly\')" style="padding:7px 16px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;border:2px solid #2563eb;background:#eff6ff;color:#2563eb">😊 친근한 말투</button>';
+  h+='<button id="mb-style-c" onclick="setExpStyle(\'concise\')" style="padding:7px 16px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;border:2px solid #e2e8f0;background:#fff;color:#64748b">📌 핵심 요약</button>';
+  h+='</div></div>';
+  h+='<label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:6px">STEP 2 — AI 출력 결과를 아래에 붙여넣기</label>'
+;
   h+='<textarea id="mb-json" rows="12" placeholder="[ { &quot;number&quot;: 1, &quot;question&quot;: &quot;...&quot;, &quot;choices&quot;: [...], &quot;answer&quot;: 3, &quot;explanation&quot;: &quot;...&quot; } ]" style="width:100%;padding:12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;font-family:monospace;resize:vertical"></textarea>';
   h+='</div>';
   h+='<div id="mb-error" style="color:#ef4444;font-size:13px;margin-bottom:12px;display:none"></div>';
@@ -555,6 +577,110 @@ function showMyBookCreate(){
   h+='</div></div>';
   document.getElementById('main').innerHTML=h;
   _mbChoiceCount=5;
+}
+function setExpStyle(style){
+  _mbExpStyle=style;
+  var bf=document.getElementById('mb-style-f');
+  var bc=document.getElementById('mb-style-c');
+  if(bf){bf.style.borderColor=style==='friendly'?'#2563eb':'#e2e8f0';bf.style.background=style==='friendly'?'#eff6ff':'#fff';bf.style.color=style==='friendly'?'#2563eb':'#64748b';}
+  if(bc){bc.style.borderColor=style==='concise'?'#2563eb':'#e2e8f0';bc.style.background=style==='concise'?'#eff6ff':'#fff';bc.style.color=style==='concise'?'#2563eb':'#64748b';}
+}
+function showMyBookManual(){
+  _mbActive=null;_mbManualQs=[];
+  var h='<div style="padding:20px;max-width:700px">';
+  h+='<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap">';
+  h+='<button onclick="showMyBookList()" style="padding:6px 14px;background:#f1f5f9;border:none;border-radius:8px;font-weight:700;cursor:pointer">← 목록으로</button>';
+  h+='<h2 style="font-size:20px;font-weight:800">✍️ 직접 입력</h2>';
+  h+='<div style="margin-left:auto;display:flex;gap:6px">';
+  h+='<button onclick="showMyBookCreate()" style="padding:5px 12px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;border:2px solid #e2e8f0;background:#fff;color:#64748b">🤖 AI로 만들기</button>';
+  h+='<button onclick="showMyBookManual()" style="padding:5px 12px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;border:2px solid #2563eb;background:#eff6ff;color:#2563eb">✍️ 직접 입력</button>';
+  h+='</div></div>';
+  h+='<div style="margin-bottom:16px">';
+  h+='<label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:6px">문제집 제목</label>';
+  h+='<input type="text" id="mb-m-title" placeholder="예: 민법 핵심 50제" style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;font-family:inherit">';
+  h+='</div>';
+  h+='<div style="margin-bottom:16px"><label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:6px">선다 수</label>';
+  h+='<div style="display:flex;gap:8px">';
+  h+='<button id="mb-mc-4" onclick="setChoiceCount(4)" style="padding:8px 20px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;border:2px solid #e2e8f0;background:#fff;color:#64748b">4지선다</button>';
+  h+='<button id="mb-mc-5" onclick="setChoiceCount(5)" style="padding:8px 20px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;border:2px solid #2563eb;background:#eff6ff;color:#2563eb">5지선다</button>';
+  h+='</div></div>';
+  h+='<div id="mb-manual-list"></div>';
+  h+='<button onclick="addManualQ()" style="width:100%;padding:10px;background:#f8fafc;color:#2563eb;border:2px dashed #bfdbfe;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:16px">+ 문제 추가</button>';
+  h+='<div id="mb-m-error" style="color:#ef4444;font-size:13px;margin-bottom:12px;display:none"></div>';
+  h+='<div style="display:flex;gap:8px;justify-content:flex-end">';
+  h+='<button onclick="showMyBookList()" style="padding:9px 20px;background:#f1f5f9;color:#475569;border:none;border-radius:8px;font-weight:700;cursor:pointer">취소</button>';
+  h+='<button onclick="createManualBook()" style="padding:9px 20px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer">📚 문제집 만들기</button>';
+  h+='</div></div>';
+  document.getElementById('main').innerHTML=h;
+  _mbChoiceCount=5;
+  addManualQ();
+}
+function renderManualList(){
+  var el=document.getElementById('mb-manual-list');
+  if(!el)return;
+  if(!_mbManualQs.length){el.innerHTML='';return;}
+  var h='';
+  _mbManualQs.forEach(function(q,i){
+    h+='<div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:12px">';
+    h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">';
+    h+='<span style="background:#eff6ff;color:#2563eb;font-size:12px;font-weight:700;padding:3px 9px;border-radius:6px">Q'+q.number+'</span>';
+    h+='<button onclick="removeManualQ('+i+')" style="margin-left:auto;padding:3px 8px;background:#fef2f2;color:#ef4444;border:1.5px solid #fecaca;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">삭제</button>';
+    h+='</div>';
+    h+='<div style="display:grid;gap:8px">';
+    h+='<div style="display:flex;gap:8px;align-items:center"><span style="font-size:12px;color:#64748b;white-space:nowrap;font-weight:600;width:36px">번호</span><input type="number" value="'+q.number+'" onchange="updateManualQNum('+i+',parseInt(this.value))" style="width:70px;padding:6px 8px;border:1.5px solid #e2e8f0;border-radius:6px;font-size:13px"></div>';
+    h+='<div><span style="font-size:12px;color:#64748b;font-weight:600">문제</span><textarea onchange="updateManualQText('+i+',this.value)" rows="2" style="width:100%;margin-top:4px;padding:8px;border:1.5px solid #e2e8f0;border-radius:6px;font-size:13px;font-family:inherit;resize:vertical">'+esc(q.question)+'</textarea></div>';
+    h+='<div><span style="font-size:12px;color:#64748b;font-weight:600">조건 / 보기 (없으면 생략)</span><textarea onchange="updateManualQCond('+i+',this.value)" rows="2" style="width:100%;margin-top:4px;padding:8px;border:1.5px solid #e2e8f0;border-radius:6px;font-size:13px;font-family:inherit;resize:vertical">'+esc(q.condition||'')+'</textarea></div>';
+    for(var c=0;c<(_mbChoiceCount||5);c++){
+      h+='<div style="display:flex;gap:8px;align-items:center"><span style="font-size:12px;color:#64748b;white-space:nowrap;font-weight:600;width:36px">보기'+(c+1)+'</span>';
+      var cv=(q.choices&&q.choices[c])||'';
+      h+='<input type="text" value="'+esc(cv)+'" onchange="updateManualQChoice('+i+','+c+',this.value)" style="flex:1;padding:6px 8px;border:1.5px solid #e2e8f0;border-radius:6px;font-size:13px"></div>';
+    }
+    h+='<div style="display:flex;gap:8px;align-items:center"><span style="font-size:12px;color:#64748b;white-space:nowrap;font-weight:600;width:36px">정답</span><div style="display:flex;gap:4px">';
+    for(var a=1;a<=(_mbChoiceCount||5);a++){
+      h+='<button onclick="updateManualQAns('+i+','+a+')" style="width:32px;height:32px;border-radius:6px;font-weight:700;font-size:13px;cursor:pointer;border:2px solid '+(q.answer===a?'#2563eb':'#e2e8f0')+';background:'+(q.answer===a?'#2563eb':'#fff')+';color:'+(q.answer===a?'#fff':'#475569')+'">'+a+'</button>';
+    }
+    h+='</div></div>';
+    h+='<div><span style="font-size:12px;color:#64748b;font-weight:600">해설</span><textarea onchange="updateManualQExp('+i+',this.value)" rows="2" style="width:100%;margin-top:4px;padding:8px;border:1.5px solid #e2e8f0;border-radius:6px;font-size:13px;font-family:inherit;resize:vertical">'+esc(q.explanation||'')+'</textarea></div>';
+    h+='</div></div>';
+  });
+  el.innerHTML=h;
+}
+function addManualQ(){
+  var n=_mbManualQs.length+1;
+  _mbManualQs.push({number:n,question:'',condition:'',choices:['','','','',''],answer:1,explanation:''});
+  renderManualList();
+}
+function removeManualQ(i){
+  _mbManualQs.splice(i,1);
+  renderManualList();
+}
+function updateManualQ(i,field,val){
+  if(!_mbManualQs[i])return;
+  _mbManualQs[i][field]=val;
+  if(field==='answer')renderManualList();
+}
+function updateManualQNum(i,val){if(!_mbManualQs[i])return;_mbManualQs[i].number=val;}
+function updateManualQText(i,val){if(!_mbManualQs[i])return;_mbManualQs[i].question=val;}
+function updateManualQCond(i,val){if(!_mbManualQs[i])return;_mbManualQs[i].condition=val;}
+function updateManualQAns(i,val){if(!_mbManualQs[i])return;_mbManualQs[i].answer=val;renderManualList();}
+function updateManualQExp(i,val){if(!_mbManualQs[i])return;_mbManualQs[i].explanation=val;}
+function updateManualQChoice(i,c,val){
+  if(!_mbManualQs[i])return;
+  if(!_mbManualQs[i].choices)_mbManualQs[i].choices=[];
+  _mbManualQs[i].choices[c]=val;
+}
+function createManualBook(){
+  var title=(document.getElementById('mb-m-title').value||'').trim();
+  var errEl=document.getElementById('mb-m-error');
+  if(!title){errEl.textContent='제목을 입력해주세요';errEl.style.display='block';return;}
+  if(!_mbManualQs.length){errEl.textContent='문제를 1개 이상 추가해주세요';errEl.style.display='block';return;}
+  var questions=_mbManualQs.map(function(q){
+    return{number:q.number,question:q.question,condition:q.condition||'',choices:q.choices.filter(function(c){return c.trim();}),answer:q.answer,explanation:q.explanation||''};
+  });
+  var invalid=questions.filter(function(q){return !q.question.trim()||q.choices.length<2;});
+  if(invalid.length){errEl.textContent='문제 텍스트와 보기를 2개 이상 입력해주세요 (Q'+invalid[0].number+')';errEl.style.display='block';return;}
+  errEl.style.display='none';
+  saveNewBook(title,_mbChoiceCount||5,questions);
 }
 function togglePrompt(){
   var box=document.getElementById('prompt-box');
@@ -567,6 +693,8 @@ function copyPrompt(){
   var el=document.getElementById('prompt-box');
   if(!el)return;
   var text=el.innerText||el.textContent;
+  var styleNote=_mbExpStyle==='concise'?'explanation: 법령 근거 중심으로 간결하게 (예: ~입니다, ~합니다 말투, 핵심 조항/숫자 위주)':'explanation: 친근한 ~해요 말투, 오답 선택지 1~2개도 간략히';
+  text=text.replace('explanation: 친근한 ~해요 말투, 오답 선택지 1~2개도 간략히',styleNote);
   if(navigator.clipboard){navigator.clipboard.writeText(text).then(function(){alert('프롬프트 복사됐어요! 제미나이에 PDF와 함께 붙여넣으세요 :)');});}
   else{var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);alert('복사됐어요!');}
 }
