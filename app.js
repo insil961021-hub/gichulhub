@@ -1,4 +1,4 @@
-var EXAM_DATA={36:EXAM_DATA_36,35:EXAM_DATA_35,34:EXAM_DATA_34,33:EXAM_DATA_33};
+var EXAM_DATA={36:EXAM_DATA_36,35:EXAM_DATA_35,34:EXAM_DATA_34,33:EXAM_DATA_33,32:EXAM_DATA_32,31:EXAM_DATA_31,30:EXAM_DATA_30};
 var state={examYear:36,subjectIdx:0,filter:'all',search:'',currentQ:0,answers:{},bookmarks:{},resolved:{},examMode:false};
 function saveS(){try{localStorage.setItem('gh',JSON.stringify({a:state.answers,b:state.bookmarks,r:state.resolved}));}catch(e){}}
 function loadS(){try{var s=JSON.parse(localStorage.getItem('gh')||'{}');state.answers=s.a||{};state.bookmarks=s.b||{};state.resolved=s.r||{};}catch(e){}}
@@ -49,10 +49,7 @@ function renderSidebar(){
   var w=wrongCount();
   var h='<div class="sidebar-close-btn" onclick="closeMenu()"><span style="font-size:20px">✕</span> 닫기</div>';
   h+='<div class="sidebar-section"><span class="sidebar-label">회차</span><div class="round-tabs">';
-  h+='<button class="round-tab'+(state.examYear===36?' active':'')+'" onclick="selYear(36)">36회</button>';
-  h+='<button class="round-tab'+(state.examYear===35?' active':'')+'" onclick="selYear(35)">35회</button>';
-  h+='<button class="round-tab'+(state.examYear===34?' active':'')+'" onclick="selYear(34)">34회</button>';
-  h+='<button class="round-tab'+(state.examYear===33?' active':'')+'" onclick="selYear(33)">33회</button>';
+  [36,35,34,33,32,31,30].forEach(function(yr){h+='<button class="round-tab'+(state.examYear===yr?' active':'')+'" onclick="selYear('+yr+')">'+yr+'회</button>';});
   h+='</div></div>';
   h+='<div class="sidebar-section"><span class="sidebar-label">1교시</span>';
   curData().forEach(function(s,i){if(s.session!==1)return;h+='<div class="sidebar-item'+(state.subjectIdx===i?' active':'')+'" onclick="selSubj('+i+')">'+s.subject+'</div>';});
