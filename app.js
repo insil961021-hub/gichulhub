@@ -177,8 +177,9 @@ function renderSidebar(){
     h+='<div class="sidebar-item" onclick="showMyBookList();closeMenu()">📚 내 문제집'+(_myBooks.length?'<span class="sidebar-badge" style="background:#7c3aed">'+_myBooks.length+'</span>':'')+'</div>';
     h+='<div class="sidebar-item" onclick="showMyBookCreate();closeMenu()">✏️ 새로 만들기</div>';
     h+='</div><hr class="sidebar-divider"><div class="sidebar-section">';
-    h+='<div class="sidebar-item" onclick="navTabExam();showWrong();closeMenu()">📕 오답노트<span style="font-size:10px;color:#94a3b8;margin-left:4px">(공인중개사)</span></div>';
-    h+='<div class="sidebar-item" onclick="navTabExam();showStats()">📊 내 통계<span style="font-size:10px;color:#94a3b8;margin-left:4px">(공인중개사)</span></div>';
+    var wm=wrongCountMb();
+    h+='<div class="sidebar-item" onclick="showWrongMb();closeMenu()">📕 오답노트'+(wm>0?'<span class="sidebar-badge">'+wm+'</span>':'')+'</div>';
+    h+='<div class="sidebar-item" onclick="showStatsMb()">📊 내 통계</div>';
     h+='</div>';
     document.getElementById('sidebar').innerHTML=h;
     return;
@@ -766,6 +767,48 @@ function renderMyBook(){
   h+='<div class="explanation'+(isAns?' show':'')+'"><div class="explanation-title">💡 해설</div>'+esc(q.explanation)+'</div>';
   h+='</div><div class="q-footer"><div class="q-nums"><div class="q-nums-row">'+r1+'</div><div class="q-nums-row">'+r2+'</div></div>';
   h+='<button class="btn-next" onclick="nextMb()">다음 →</button></div></div>';
+  document.getElementById('main').innerHTML=h;
+}
+function wrongCountMb(){
+  if(!_mbActive)return 0;
+  var w=0;
+  _mbActive.questions.forEach(function(q,i){var a=_mbAns[''+i];if(a!==undefined&&a!==q.answer)w++;});
+  return w;
+}
+function showWrongMb(){
+  if(!_mbActive){showMyBookList();return;}
+  var qs=_mbActive.questions;
+  for(var i=0;i<qs.length;i++){
+    var a=_mbAns[''+i];
+    if(a!==undefined&&a!==qs[i].answer){_mbQ=i;renderMyBook();return;}
+  }
+  alert('오답이 없어요! 🎉');
+}
+function showStatsMb(){
+  if(!_mbActive){showMyBookList();return;}
+  var qs=_mbActive.questions;
+  var cor=0,wrong=0,unanswered=0;
+  qs.forEach(function(q,i){var a=_mbAns[''+i];if(a===undefined)unanswered++;else if(a===q.answer)cor++;else wrong++;});
+  var total=qs.length;
+  var h='<div style="padding:20px;max-width:700px">';
+  h+='<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">';
+  h+='<button onclick="renderMyBook()" style="padding:6px 14px;background:#f1f5f9;border:none;border-radius:8px;font-weight:700;cursor:pointer">← 문제로</button>';
+  h+='<h2 style="font-size:20px;font-weight:800">📊 '+esc(_mbActive.title)+'</h2></div>';
+  h+='<div style="display:flex;gap:12px;margin-bottom:20px">';
+  h+='<div style="flex:1;background:#f0fdf4;border-radius:12px;padding:16px;text-align:center"><div style="font-size:28px;font-weight:800;color:#16a34a">'+cor+'</div><div style="font-size:12px;color:#64748b;margin-top:4px">정답</div></div>';
+  h+='<div style="flex:1;background:#fef2f2;border-radius:12px;padding:16px;text-align:center"><div style="font-size:28px;font-weight:800;color:#ef4444">'+wrong+'</div><div style="font-size:12px;color:#64748b;margin-top:4px">오답</div></div>';
+  h+='<div style="flex:1;background:#f8fafc;border-radius:12px;padding:16px;text-align:center"><div style="font-size:28px;font-weight:800;color:#94a3b8">'+unanswered+'</div><div style="font-size:12px;color:#64748b;margin-top:4px">미풀이</div></div>';
+  h+='</div>';
+  if(cor+wrong>0){
+    var pct=Math.round(cor/(cor+wrong)*100);
+    h+='<div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;padding:16px">';
+    h+='<div style="font-size:14px;font-weight:700;color:#1e293b;margin-bottom:8px">정답률</div>';
+    h+='<div style="background:#e2e8f0;border-radius:8px;height:10px;overflow:hidden"><div style="height:100%;background:linear-gradient(90deg,#2563eb,#60a5fa);border-radius:8px;width:'+pct+'%"></div></div>';
+    h+='<div style="font-size:13px;color:#64748b;margin-top:6px">'+pct+'% ('+cor+'/'+(cor+wrong)+'문제 풀이)</div></div>';
+  } else {
+    h+='<div style="text-align:center;padding:32px;color:#94a3b8"><div style="font-size:36px">📝</div><p style="margin-top:12px;font-size:14px">아직 푼 문제가 없어요</p></div>';
+  }
+  h+='</div>';
   document.getElementById('main').innerHTML=h;
 }
 function pickMb(key,c,ans){if(_mbAns[key]!==undefined)return;_mbAns[key]=c;renderMyBook();}
