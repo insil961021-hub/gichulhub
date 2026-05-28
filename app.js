@@ -177,8 +177,8 @@ function renderSidebar(){
     h+='<div class="sidebar-item" onclick="showMyBookList();closeMenu()">📚 내 문제집'+(_myBooks.length?'<span class="sidebar-badge" style="background:#7c3aed">'+_myBooks.length+'</span>':'')+'</div>';
     h+='<div class="sidebar-item" onclick="showMyBookCreate();closeMenu()">✏️ 새로 만들기</div>';
     h+='</div><hr class="sidebar-divider"><div class="sidebar-section">';
-    h+='<div class="sidebar-item" onclick="showWrong();closeMenu()">📕 오답노트'+(w>0?'<span class="sidebar-badge">'+w+'</span>':'')+'</div>';
-    h+='<div class="sidebar-item" onclick="showStats()">📊 내 통계</div>';
+    h+='<div class="sidebar-item" onclick="navTabExam();showWrong();closeMenu()">📕 오답노트<span style="font-size:10px;color:#94a3b8;margin-left:4px">(공인중개사)</span></div>';
+    h+='<div class="sidebar-item" onclick="navTabExam();showStats()">📊 내 통계<span style="font-size:10px;color:#94a3b8;margin-left:4px">(공인중개사)</span></div>';
     h+='</div>';
     document.getElementById('sidebar').innerHTML=h;
     return;
@@ -477,20 +477,20 @@ function saveNewBook(title,choiceCount,questions){
 }
 function deleteMyBook(id){
   if(!confirm('이 문제집을 삭제할까요?'))return;
-  _myBooks=_myBooks.filter(function(b){return b.id!==id;});saveMyBooksLocal();
+  _myBooks=_myBooks.filter(function(b){return b.id!=id;});saveMyBooksLocal();
   if(_supa&&_user){_supa.from('custom_quizbooks').delete().eq('id',id).eq('user_id',_user.id).then(function(){});}
   renderSidebar();showMyBookList();
 }
 function openMyBook(id){
   var book=null;
-  for(var i=0;i<_myBooks.length;i++){if(_myBooks[i].id===id){book=_myBooks[i];break;}}
+  for(var i=0;i<_myBooks.length;i++){if(_myBooks[i].id==id){book=_myBooks[i];break;}}
   if(!book)return;
   _mbActive=book;_mbQ=0;_mbAns={};_mbBm={};
   renderSidebar();renderMyBook();closeMenu();
 }
 function downloadMyBook(id){
   var book=null;
-  for(var i=0;i<_myBooks.length;i++){if(_myBooks[i].id===id){book=_myBooks[i];break;}}
+  for(var i=0;i<_myBooks.length;i++){if(_myBooks[i].id==id){book=_myBooks[i];break;}}
   if(!book)return;
   var data=JSON.stringify(book.questions,null,2);
   var blob=new Blob([data],{type:'application/json'});
