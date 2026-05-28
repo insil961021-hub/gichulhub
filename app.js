@@ -152,6 +152,21 @@ function closeMenu(){
   if(ov){ov.classList.remove('open');}
 }
 
+function navTabExam(){
+  _mbActive=null;
+  var t1=document.getElementById('nav-tab-exam');
+  var t2=document.getElementById('nav-tab-studio');
+  if(t1){t1.className='nav-tab active';}
+  if(t2){t2.className='nav-tab';}
+  renderSidebar();renderMain();
+}
+function navTabStudio(){
+  var t1=document.getElementById('nav-tab-exam');
+  var t2=document.getElementById('nav-tab-studio');
+  if(t1){t1.className='nav-tab';}
+  if(t2){t2.className='nav-tab active';}
+  showMyBookList();
+}
 function renderSidebar(){
   var w=wrongCount();
   var h='<div class="sidebar-close-btn" onclick="closeMenu()"><span style="font-size:20px">✕</span> 닫기</div>';
@@ -512,9 +527,12 @@ function showMyBookCreate(){
   h+='<h2 style="font-size:20px;font-weight:800">📝 새 문제집 만들기</h2>';
   h+='</div>';
   h+='<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:16px;margin-bottom:20px">';
-  h+='<div style="font-size:13px;font-weight:700;color:#1e40af;margin-bottom:8px">💡 STEP 1 — 제미나이(또는 ChatGPT)에게 아래 프롬프트로 PDF를 파싱해 달라고 하세요</div>';
-  h+='<div id="prompt-box" style="background:#fff;border-radius:8px;padding:12px;font-size:12px;font-family:monospace;color:#334155;line-height:1.7;white-space:pre-wrap">이 PDF의 문제들을 아래 JSON 형식으로 파싱해줘. 각 문제는 배열 원소 하나야.\n[\n  {\n    "number": 1,\n    "question": "문제 텍스트",\n    "choices": ["보기1", "보기2", "보기3", "보기4", "보기5"],\n    "answer": 3,\n    "explanation": "해설 텍스트"\n  }\n]\n정답은 1~5 사이 숫자, choices는 보기 텍스트만(번호 제외), explanation은 간단하게. JSON만 출력해줘.</div>';
-  h+='<button onclick="copyPrompt()" style="margin-top:8px;padding:4px 12px;background:#2563eb;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">📋 프롬프트 복사</button>';
+  h+='<div style="font-size:13px;font-weight:700;color:#1e40af;margin-bottom:8px">💡 STEP 1 — AI에게 아래 프롬프트와 함께 PDF를 전달하세요</div>';
+  h+='<div id="prompt-box" style="background:#fff;border-radius:8px;padding:12px;font-size:12px;font-family:monospace;color:#334155;line-height:1.7;white-space:pre-wrap;max-height:180px;overflow:hidden;transition:max-height 0.3s">아래 PDF를 JSON 배열로 변환해줘. JSON만 출력.\n\n과목명: [과목명]  회차: [제N회]  연도: [YYYY]  교시: [1 or 2]\n\n[{\n  "number": 41,\n  "question": "문제 텍스트",\n  "condition": "ㄱ. ...\nㄴ. ... (조건 없으면 null)",\n  "choices": ["① ...", "② ...", "③ ...", "④ ...", "⑤ ..."],\n  "answer": 3,\n  "explanation": "해설 (친근한 말투, 법령 근거 괄호 표시)",\n  "hasImage": false\n}]\n\n[규칙] number: 시험지 번호 그대로 / question: 본문만, 조건은 condition에 분리 /\nchoices: 번호 기호(①②③) 포함, 원문 그대로 / answer: 정답 숫자(추측 금지) /\nexplanation: 친근한 ~해요 말투, 오답 선택지 1~2개도 간략히 / hasImage: 그림·그래프 필수 문제만 true /\n전 문제 빠짐없이 완성된 형태로 출력</div>';
+  h+='<div style="display:flex;gap:8px;margin-top:8px;align-items:center">';
+  h+='<button id="btn-prompt-toggle" onclick="togglePrompt()" style="padding:4px 10px;background:#f1f5f9;color:#475569;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">▼ 전체 보기</button>';
+  h+='<button onclick="copyPrompt()" style="padding:4px 12px;background:#2563eb;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">📋 프롬프트 복사</button>';
+  h+='</div>';
   h+='</div>';
   h+='<div style="margin-bottom:16px">';
   h+='<label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:6px">문제집 제목</label>';
@@ -527,7 +545,7 @@ function showMyBookCreate(){
   h+='<button id="mb-ch-5" onclick="setChoiceCount(5)" style="padding:8px 20px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;border:2px solid #2563eb;background:#eff6ff;color:#2563eb">5지선다</button>';
   h+='</div></div>';
   h+='<div style="margin-bottom:16px">';
-  h+='<label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:6px">STEP 2 — 제미나이 출력 JSON을 아래에 붙여넣기</label>';
+  h+='<label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:6px">STEP 2 — AI 출력 결과를 아래에 붙여넣기</label>';
   h+='<textarea id="mb-json" rows="12" placeholder="[ { &quot;number&quot;: 1, &quot;question&quot;: &quot;...&quot;, &quot;choices&quot;: [...], &quot;answer&quot;: 3, &quot;explanation&quot;: &quot;...&quot; } ]" style="width:100%;padding:12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;font-family:monospace;resize:vertical"></textarea>';
   h+='</div>';
   h+='<div id="mb-error" style="color:#ef4444;font-size:13px;margin-bottom:12px;display:none"></div>';
@@ -537,6 +555,13 @@ function showMyBookCreate(){
   h+='</div></div>';
   document.getElementById('main').innerHTML=h;
   _mbChoiceCount=5;
+}
+function togglePrompt(){
+  var box=document.getElementById('prompt-box');
+  var btn=document.getElementById('btn-prompt-toggle');
+  if(!box||!btn)return;
+  if(box.style.maxHeight==='none'){box.style.maxHeight='180px';btn.textContent='▼ 전체 보기';}
+  else{box.style.maxHeight='none';btn.textContent='▲ 접기';}
 }
 function copyPrompt(){
   var el=document.getElementById('prompt-box');
