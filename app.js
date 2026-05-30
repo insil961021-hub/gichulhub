@@ -157,34 +157,28 @@ function navTabExam(){
   _mbActive=null;_navMode='exam';
   var t1=document.getElementById('nav-tab-exam');
   var t2=document.getElementById('nav-tab-studio');
-  var t3=document.getElementById('nav-tab-jijun');
   if(t1){t1.className='nav-tab active';}
   if(t2){t2.className='nav-tab';}
-  if(t3){t3.className='nav-tab';}
   renderSidebar();renderMain();
 }
 function navTabStudio(){
   _navMode='studio';
   var t1=document.getElementById('nav-tab-exam');
   var t2=document.getElementById('nav-tab-studio');
-  var t3=document.getElementById('nav-tab-jijun');
   if(t1){t1.className='nav-tab';}
   if(t2){t2.className='nav-tab active';}
-  if(t3){t3.className='nav-tab';}
   showMyBookList();
 }
 function navTabJijun(){
   _navMode='jijun';
   var t1=document.getElementById('nav-tab-exam');
   var t2=document.getElementById('nav-tab-studio');
-  var t3=document.getElementById('nav-tab-jijun');
   if(t1){t1.className='nav-tab';}
   if(t2){t2.className='nav-tab';}
-  if(t3){t3.className='nav-tab active';}
   renderSidebar();showJijun();
 }
 function selJijunSubj(i){
-  _jijunSubj=i;
+  _jijunSubj=i;_navMode='jijun';
   renderSidebar();showJijun();
   closeMenu();
 }
@@ -216,6 +210,7 @@ function showJijun(){
 function renderSidebar(){
   if(_navMode==='jijun'){
     var h='<div class="sidebar-close-btn" onclick="closeMenu()"><span style="font-size:20px">✕</span> 닫기</div>';
+    h+='<div class="sidebar-section"><div class="sidebar-item" onclick="navTabExam()" style="color:#64748b;font-size:12px">← 기출문제로</div></div>';
     h+='<div class="sidebar-section"><span class="sidebar-label">기출지문</span>';
     if(typeof _jijunData!=='undefined'&&_jijunData){
       _jijunData.forEach(function(subj,i){
@@ -253,6 +248,7 @@ function renderSidebar(){
   h+='<div class="sidebar-item" onclick="showWrong();closeMenu()">📕 오답노트'+(w>0?'<span class="sidebar-badge">'+w+'</span>':'')+'</div>';
   h+='<div class="sidebar-item" onclick="showStats()">📊 내 통계</div>';
   h+='<div class="sidebar-item" onclick="showPdf();closeMenu()">📥 PDF 다운로드</div>';
+  h+='<div class="sidebar-item" onclick="navTabJijun()">📋 기출지문</div>';
   h+='</div>';
   h+='</div>';
   document.getElementById('sidebar').innerHTML=h;
