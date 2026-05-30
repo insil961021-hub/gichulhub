@@ -16,18 +16,76 @@ function toggleJijunCheck(key){
   var btn=document.getElementById('jc_'+key);
   if(btn){btn.innerHTML=_jijunChecked[key]?'★':'☆';btn.style.color=_jijunChecked[key]?'#f59e0b':'#cbd5e1';}
 }
+var _jijunCustomBlanks={};
+function loadJijunCustom(){try{_jijunCustomBlanks=JSON.parse(localStorage.getItem('gh_jijun_custom')||'{}');}catch(e){_jijunCustomBlanks={};}}
+function saveJijunCustom(){try{localStorage.setItem('gh_jijun_custom',JSON.stringify(_jijunCustomBlanks));}catch(e){}}
+loadJijunCustom();
 function revealBlank(el){
   el.innerHTML=el.getAttribute('data-ans');
   el.style.background='#dcfce7';el.style.color='#166534';el.style.borderColor='#16a34a';el.style.cursor='default';
   el.onclick=null;
 }
-function resetBlanks(){var els=document.querySelectorAll('.jb');els.forEach(function(el){el.innerHTML='　　　';el.style.background='#eff6ff';el.style.color='transparent';el.style.borderColor='#93c5fd';el.style.cursor='pointer';el.onclick=function(){revealBlank(this);}});}
-function makeBlankHtml(text,key){
-  var escaped=esc(text);
-  var result=escaped;
-  result=result.replace(/「([^」]+)」/g,function(m,inner){return '「<span class="jb" onclick="revealBlank(this)" data-ans="'+inner+'" style="display:inline-block;background:#eff6ff;color:transparent;border-bottom:2px solid #93c5fd;border-radius:3px;padding:0 4px;cursor:pointer;min-width:40px">　　　</span>」';});
-  result=result.replace(/(\d[\d,\.]*(?:\s*(?:%|m²|㎡|층|년|개월|일|만원|억|천|m|km|㎝))?)/g,function(m){return '<span class="jb" onclick="revealBlank(this)" data-ans="'+m+'" style="display:inline-block;background:#eff6ff;color:transparent;border-bottom:2px solid #93c5fd;border-radius:3px;padding:0 2px;cursor:pointer;min-width:20px">　　</span>';});
-  return result;
+function resetBlanks(){
+  document.querySelectorAll('.jb').forEach(function(el){
+    el.innerHTML='　';el.style.background='#eff6ff';el.style.color='transparent';el.style.borderColor='#93c5fd';el.style.cursor='pointer';
+    el.onclick=function(){revealBlank(this);};
+  });
+}
+function toggleCustomBlank(itemKey,wordIdx){
+  if(!_jijunCustomBlanks[itemKey])_jijunCustomBlanks[itemKey]=[];
+  var arr=_jijunCustomBlanks[itemKey];
+  var pos=arr.indexOf(wordIdx);
+  if(pos>=0){arr.splice(pos,1);}else{arr.push(wordIdx);}
+  saveJijunCustom();
+  showJijun();
+}
+function makeBlankHtml(text,itemKey){
+  // Step 1: parse text into parts (text segments and auto-blanks)
+  // to avoid CSS string contamination, we parse BEFORE making HTML
+  var parts=[];
+  var pattern=/「([^」]+)」|(\d[\d,\.]*(?:\s*(?:%|m²|㎡|층|년|개월|일|만원|억|천|m|km|㎝))?)/g;
+  var last=0;var m;
+  while((m=pattern.exec(text))!==null){
+    if(m.index>last)parts.push({type:'text',val:text.slice(last,m.index)});
+    if(m[1]!==undefined){
+      parts.push({type:'text',val:'「'});
+      parts.push({type:'auto',val:m[1]});
+      parts.push({type:'text',val:'」'});
+    }else{
+      parts.push({type:'auto',val:m[0]});
+    }
+    last=pattern.lastIndex;
+  }
+  if(last<text.length)parts.push({type:'text',val:text.slice(last)});
+  // Step 2: split text parts into words for custom blank support
+  var customSet={};
+  var custom=_jijunCustomBlanks[itemKey]||[];
+  custom.forEach(function(i){customSet[i]=true;});
+  var wordIdx=0;
+  var h='';
+  var blankStyle='display:inline-block;background:#eff6ff;color:transparent;border-bottom:2px solid #93c5fd;border-radius:3px;padding:0 3px;cursor:pointer;';
+  parts.forEach(function(part){
+    if(part.type==='auto'){
+      var w=part.val;var minW=w.length>4?'50px':'22px';
+      h+='<span class="jb" onclick="revealBlank(this)" data-ans="'+esc(w)+'" style="'+blankStyle+'min-width:'+minW+'">　</span>';
+    }else{
+      // Split by spaces to make each word clickable
+      var tokens=part.val.split(/(\s+)/);
+      tokens.forEach(function(tok){
+        if(/^\s+$/.test(tok)){h+=tok;return;}
+        if(tok===''){return;}
+        var wi=wordIdx++;
+        var isBlank=customSet[wi];
+        if(isBlank){
+          var minW2=tok.length>4?Math.round(tok.length*7)+'px':'30px';
+          h+='<span class="jb jb-custom" onclick="revealBlank(this)" data-ans="'+esc(tok)+'" data-wi="'+wi+'" data-ik="'+itemKey+'" style="'+blankStyle+'min-width:'+minW2+'">　</span>';
+        }else{
+          h+='<span class="jw" onclick="toggleCustomBlank(\''+itemKey+'\','+wi+')" data-wi="'+wi+'" style="cursor:pointer;border-radius:3px;padding:0 1px" title="클릭해서 빈칸으로">'+esc(tok)+'</span>';
+        }
+      });
+    }
+  });
+  return h;
 }
 function saveS(){try{localStorage.setItem('gh',JSON.stringify({a:state.answers,b:state.bookmarks,r:state.resolved}));}catch(e){}}
 function loadS(){try{var s=JSON.parse(localStorage.getItem('gh')||'{}');state.answers=s.a||{};state.bookmarks=s.b||{};state.resolved=s.r||{};}catch(e){}}
@@ -220,8 +278,9 @@ function showJijun(){
   h+='<div class="filter-bar" style="flex-wrap:wrap;gap:6px">';
   h+='<button class="filter-btn'+(_jijunViewMode==='all'?' active':'')+'" onclick="_jijunViewMode=\'all\';showJijun()">전체 '+total+'개</button>';
   h+='<button class="filter-btn'+(_jijunViewMode==='checked'?' active':'')+'" onclick="_jijunViewMode=\'checked\';showJijun()">★ 모아보기'+(checkedCount>0?' '+checkedCount+'개':'')+'</button>';
-  h+='<button class="filter-btn'+(_jijunBlankMode?' active':'')+'" onclick="_jijunBlankMode=!_jijunBlankMode;showJijun()" style="'+(_jijunBlankMode?'background:#fef3c7;border-color:#f59e0b;color:#92400e':'')+'">✏️ 빈칸뚫기'+((_jijunBlankMode?'  켜짐':''))+'</button>';
+  h+='<button class="filter-btn'+(_jijunBlankMode?' active':'')+'" onclick="_jijunBlankMode=!_jijunBlankMode;showJijun()" style="'+(_jijunBlankMode?'background:#fef3c7;border-color:#f59e0b;color:#92400e':'')+'">✏️ 빈칸뚫기'+((_jijunBlankMode?' ON':''))+'</button>';
   if(_jijunBlankMode){h+='<button onclick="resetBlanks()" style="padding:5px 12px;border-radius:20px;font-size:12px;cursor:pointer;background:#e0f2fe;color:#0369a1;border:1.5px solid #7dd3fc">↺ 빈칸 초기화</button>';}
+  if(_jijunBlankMode){h+='<div style="width:100%;font-size:11px;color:#94a3b8;padding:2px 4px">💡 숫자·법령명은 자동 빈칸 &nbsp;|&nbsp; 단어 클릭 → 직접 빈칸 추가/해제</div>';}
   h+='</div>';
   subj.sections.forEach(function(sec,sidx){
     var visibleItems=sec.items.filter(function(item){
