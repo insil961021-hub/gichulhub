@@ -6,7 +6,7 @@ var _user=null;
 var _dbQuestions={};
 var state={examYear:36,subjectIdx:0,filter:'all',search:'',currentQ:0,answers:{},bookmarks:{},resolved:{},examMode:false};
 var _myBooks=[];var _mbActive=null;var _mbQ=0;var _mbAns={};var _mbBm={};var _mbChoiceCount=5;
-var _navMode='exam';var _mbExpStyle='friendly';var _mbManualQs=[];
+var _navMode='exam';var _mbExpStyle='friendly';var _mbManualQs=[];var _jijunSubj=0;
 function saveS(){try{localStorage.setItem('gh',JSON.stringify({a:state.answers,b:state.bookmarks,r:state.resolved}));}catch(e){}}
 function loadS(){try{var s=JSON.parse(localStorage.getItem('gh')||'{}');state.answers=s.a||{};state.bookmarks=s.b||{};state.resolved=s.r||{};}catch(e){}}
 loadS();
@@ -157,19 +157,75 @@ function navTabExam(){
   _mbActive=null;_navMode='exam';
   var t1=document.getElementById('nav-tab-exam');
   var t2=document.getElementById('nav-tab-studio');
+  var t3=document.getElementById('nav-tab-jijun');
   if(t1){t1.className='nav-tab active';}
   if(t2){t2.className='nav-tab';}
+  if(t3){t3.className='nav-tab';}
   renderSidebar();renderMain();
 }
 function navTabStudio(){
   _navMode='studio';
   var t1=document.getElementById('nav-tab-exam');
   var t2=document.getElementById('nav-tab-studio');
+  var t3=document.getElementById('nav-tab-jijun');
   if(t1){t1.className='nav-tab';}
   if(t2){t2.className='nav-tab active';}
+  if(t3){t3.className='nav-tab';}
   showMyBookList();
 }
+function navTabJijun(){
+  _navMode='jijun';
+  var t1=document.getElementById('nav-tab-exam');
+  var t2=document.getElementById('nav-tab-studio');
+  var t3=document.getElementById('nav-tab-jijun');
+  if(t1){t1.className='nav-tab';}
+  if(t2){t2.className='nav-tab';}
+  if(t3){t3.className='nav-tab active';}
+  renderSidebar();showJijun();
+}
+function selJijunSubj(i){
+  _jijunSubj=i;
+  renderSidebar();showJijun();
+  closeMenu();
+}
+function showJijun(){
+  if(typeof _jijunData==='undefined'||!_jijunData||!_jijunData.length){
+    document.getElementById('main').innerHTML='<div class="empty"><div style="font-size:48px">📋</div><p>기출지문 데이터가 없어요.</p></div>';
+    return;
+  }
+  var subj=_jijunData[_jijunSubj];
+  if(!subj){_jijunSubj=0;subj=_jijunData[0];}
+  var total=0;
+  subj.sections.forEach(function(s){total+=s.items.length;});
+  var h='<div class="page-header"><h1>'+subj.icon+' '+subj.subject+'</h1>';
+  h+='<p>기출지문 &middot; '+subj.sections.length+'개 편 &middot; 총 '+total+'개 지문</p></div>';
+  subj.sections.forEach(function(sec){
+    h+='<div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;margin-bottom:20px;overflow:hidden">';
+    h+='<div style="padding:14px 20px;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-size:14px;font-weight:700;color:#1e293b">'+sec.section+'</div>';
+    h+='<div style="padding:8px 0">';
+    sec.items.forEach(function(item){
+      h+='<div style="display:flex;gap:10px;padding:10px 20px;border-bottom:1px solid #f1f5f9;font-size:13px;line-height:1.6;color:#374151">';
+      h+='<span style="flex-shrink:0;font-weight:700;color:#2563eb;min-width:24px">'+item.num+'.</span>';
+      h+='<span>'+esc(item.text)+'</span>';
+      h+='</div>';
+    });
+    h+='</div></div>';
+  });
+  document.getElementById('main').innerHTML=h;
+}
 function renderSidebar(){
+  if(_navMode==='jijun'){
+    var h='<div class="sidebar-close-btn" onclick="closeMenu()"><span style="font-size:20px">✕</span> 닫기</div>';
+    h+='<div class="sidebar-section"><span class="sidebar-label">기출지문</span>';
+    if(typeof _jijunData!=='undefined'&&_jijunData){
+      _jijunData.forEach(function(subj,i){
+        h+='<div class="sidebar-item'+(_jijunSubj===i?' active':'')+'" onclick="selJijunSubj('+i+')">'+subj.icon+' '+subj.subject+'</div>';
+      });
+    }
+    h+='</div>';
+    document.getElementById('sidebar').innerHTML=h;
+    return;
+  }
   if(_navMode==='studio'){
     var w=wrongCount();
     var h='<div class="sidebar-close-btn" onclick="closeMenu()"><span style="font-size:20px">✕</span> 닫기</div>';
