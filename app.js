@@ -25,12 +25,7 @@ function revealBlank(el){
   el.style.background='#dcfce7';el.style.color='#166534';el.style.borderColor='#16a34a';el.style.cursor='default';
   el.onclick=null;
 }
-function resetBlanks(){
-  document.querySelectorAll('.jb').forEach(function(el){
-    el.innerHTML='　';el.style.background='#eff6ff';el.style.color='transparent';el.style.borderColor='#93c5fd';el.style.cursor='pointer';
-    el.onclick=function(){revealBlank(this);};
-  });
-}
+function resetBlanks(){showJijun();}
 function toggleCustomBlank(itemKey,wordIdx){
   if(!_jijunCustomBlanks[itemKey])_jijunCustomBlanks[itemKey]=[];
   var arr=_jijunCustomBlanks[itemKey];
