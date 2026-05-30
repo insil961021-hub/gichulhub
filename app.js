@@ -6,7 +6,29 @@ var _user=null;
 var _dbQuestions={};
 var state={examYear:36,subjectIdx:0,filter:'all',search:'',currentQ:0,answers:{},bookmarks:{},resolved:{},examMode:false};
 var _myBooks=[];var _mbActive=null;var _mbQ=0;var _mbAns={};var _mbBm={};var _mbChoiceCount=5;
-var _navMode='exam';var _mbExpStyle='friendly';var _mbManualQs=[];var _jijunSubj=0;
+var _navMode='exam';var _mbExpStyle='friendly';var _mbManualQs=[];var _jijunSubj=0;var _jijunChecked={};var _jijunBlankMode=false;var _jijunViewMode='all';
+function loadJijunChecked(){try{_jijunChecked=JSON.parse(localStorage.getItem('gh_jijun')||'{}');}catch(e){_jijunChecked={};}}
+function saveJijunChecked(){try{localStorage.setItem('gh_jijun',JSON.stringify(_jijunChecked));}catch(e){}}
+loadJijunChecked();
+function toggleJijunCheck(key){
+  if(_jijunChecked[key]){delete _jijunChecked[key];}else{_jijunChecked[key]=true;}
+  saveJijunChecked();
+  var btn=document.getElementById('jc_'+key);
+  if(btn){btn.innerHTML=_jijunChecked[key]?'★':'☆';btn.style.color=_jijunChecked[key]?'#f59e0b':'#cbd5e1';}
+}
+function revealBlank(el){
+  el.innerHTML=el.getAttribute('data-ans');
+  el.style.background='#dcfce7';el.style.color='#166534';el.style.borderColor='#16a34a';el.style.cursor='default';
+  el.onclick=null;
+}
+function resetBlanks(){var els=document.querySelectorAll('.jb');els.forEach(function(el){el.innerHTML='　　　';el.style.background='#eff6ff';el.style.color='transparent';el.style.borderColor='#93c5fd';el.style.cursor='pointer';el.onclick=function(){revealBlank(this);}});}
+function makeBlankHtml(text,key){
+  var escaped=esc(text);
+  var result=escaped;
+  result=result.replace(/「([^」]+)」/g,function(m,inner){return '「<span class="jb" onclick="revealBlank(this)" data-ans="'+inner+'" style="display:inline-block;background:#eff6ff;color:transparent;border-bottom:2px solid #93c5fd;border-radius:3px;padding:0 4px;cursor:pointer;min-width:40px">　　　</span>」';});
+  result=result.replace(/(\d[\d,\.]*(?:\s*(?:%|m²|㎡|층|년|개월|일|만원|억|천|m|km|㎝))?)/g,function(m){return '<span class="jb" onclick="revealBlank(this)" data-ans="'+m+'" style="display:inline-block;background:#eff6ff;color:transparent;border-bottom:2px solid #93c5fd;border-radius:3px;padding:0 2px;cursor:pointer;min-width:20px">　　</span>';});
+  return result;
+}
 function saveS(){try{localStorage.setItem('gh',JSON.stringify({a:state.answers,b:state.bookmarks,r:state.resolved}));}catch(e){}}
 function loadS(){try{var s=JSON.parse(localStorage.getItem('gh')||'{}');state.answers=s.a||{};state.bookmarks=s.b||{};state.resolved=s.r||{};}catch(e){}}
 loadS();
@@ -189,22 +211,42 @@ function showJijun(){
   }
   var subj=_jijunData[_jijunSubj];
   if(!subj){_jijunSubj=0;subj=_jijunData[0];}
+  var checkedCount=0;
+  Object.keys(_jijunChecked).forEach(function(k){if(k.indexOf(_jijunSubj+'_')===0&&_jijunChecked[k])checkedCount++;});
   var total=0;
   subj.sections.forEach(function(s){total+=s.items.length;});
   var h='<div class="page-header"><h1>'+subj.icon+' '+subj.subject+'</h1>';
   h+='<p>기출지문 &middot; '+subj.sections.length+'개 편 &middot; 총 '+total+'개 지문</p></div>';
-  subj.sections.forEach(function(sec){
+  h+='<div class="filter-bar" style="flex-wrap:wrap;gap:6px">';
+  h+='<button class="filter-btn'+(_jijunViewMode==='all'?' active':'')+'" onclick="_jijunViewMode=\'all\';showJijun()">전체 '+total+'개</button>';
+  h+='<button class="filter-btn'+(_jijunViewMode==='checked'?' active':'')+'" onclick="_jijunViewMode=\'checked\';showJijun()">★ 모아보기'+(checkedCount>0?' '+checkedCount+'개':'')+'</button>';
+  h+='<button class="filter-btn'+(_jijunBlankMode?' active':'')+'" onclick="_jijunBlankMode=!_jijunBlankMode;showJijun()" style="'+(_jijunBlankMode?'background:#fef3c7;border-color:#f59e0b;color:#92400e':'')+'">✏️ 빈칸뚫기'+((_jijunBlankMode?'  켜짐':''))+'</button>';
+  if(_jijunBlankMode){h+='<button onclick="resetBlanks()" style="padding:5px 12px;border-radius:20px;font-size:12px;cursor:pointer;background:#e0f2fe;color:#0369a1;border:1.5px solid #7dd3fc">↺ 빈칸 초기화</button>';}
+  h+='</div>';
+  subj.sections.forEach(function(sec,sidx){
+    var visibleItems=sec.items.filter(function(item){
+      if(_jijunViewMode==='checked'){var k=_jijunSubj+'_'+sidx+'_'+item.num;return _jijunChecked[k];}
+      return true;
+    });
+    if(!visibleItems.length)return;
     h+='<div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;margin-bottom:20px;overflow:hidden">';
-    h+='<div style="padding:14px 20px;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-size:14px;font-weight:700;color:#1e293b">'+sec.section+'</div>';
-    h+='<div style="padding:8px 0">';
-    sec.items.forEach(function(item){
-      h+='<div style="display:flex;gap:10px;padding:10px 20px;border-bottom:1px solid #f1f5f9;font-size:13px;line-height:1.6;color:#374151">';
-      h+='<span style="flex-shrink:0;font-weight:700;color:#2563eb;min-width:24px">'+item.num+'.</span>';
-      h+='<span>'+esc(item.text)+'</span>';
+    h+='<div style="padding:14px 20px;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-size:14px;font-weight:700;color:#1e293b">'+esc(sec.section)+'</div>';
+    h+='<div style="padding:4px 0">';
+    visibleItems.forEach(function(item){
+      var k=_jijunSubj+'_'+sidx+'_'+item.num;
+      var checked=!!_jijunChecked[k];
+      var textHtml=_jijunBlankMode?makeBlankHtml(item.text,k):esc(item.text);
+      h+='<div style="display:flex;align-items:flex-start;gap:8px;padding:10px 16px;border-bottom:1px solid #f1f5f9;font-size:13px;line-height:1.7;color:#374151">';
+      h+='<button id="jc_'+k+'" onclick="toggleJijunCheck(\''+k+'\')" style="flex-shrink:0;background:none;border:none;font-size:18px;cursor:pointer;color:'+(checked?'#f59e0b':'#cbd5e1')+';padding:0;margin-top:1px;line-height:1">'+(checked?'★':'☆')+'</button>';
+      h+='<span style="flex-shrink:0;font-weight:700;color:#2563eb;min-width:20px">'+item.num+'.</span>';
+      h+='<span>'+textHtml+'</span>';
       h+='</div>';
     });
     h+='</div></div>';
   });
+  if(_jijunViewMode==='checked'&&checkedCount===0){
+    h+='<div class="empty"><div style="font-size:48px">☆</div><p>★ 버튼을 눌러 지문을 모아보세요!</p></div>';
+  }
   document.getElementById('main').innerHTML=h;
 }
 function renderSidebar(){
