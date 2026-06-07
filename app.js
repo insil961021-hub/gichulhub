@@ -445,12 +445,20 @@ function showWrong(){
 }
 function goToByNum(num){var qs=filteredQ();for(var i=0;i<qs.length;i++){if(qs[i].number===num){state.currentQ=i;return;}}state.currentQ=0;}
 function resetSubject(i){
-  if(!confirm('이 과목의 모든 풀이 기록을 삭제할까요?'))return;
+  if(!confirm('이 과목의 풀이 기록을 초기화할까요? (별표는 유지됩니다)'))return;
   var s=curData()[i];
   s.questions.forEach(function(q){
     var k=state.examYear+'_'+i+'_'+q.number;
-    delete state.answers[k];delete state.bookmarks[k];delete state.resolved[k];
-    if(_supa&&_user){_supa.from('user_progress').delete().eq('user_id',_user.id).eq('year',state.examYear).eq('subject',s.subject).eq('q_num',q.number).then(function(){});}
+    delete state.answers[k];delete state.resolved[k];
+    // 북마크는 유지 (delete state.bookmarks[k] 제거)
+    if(_supa&&_user){
+      var isBm=!!state.bookmarks[k];
+      _supa.from('user_progress').upsert({
+        user_id:_user.id,year:state.examYear,subject:s.subject,q_num:q.number,
+        answer_given:null,is_correct:null,is_resolved:false,is_bookmarked:isBm,
+        attempt_count:0,last_attempted_at:new Date().toISOString()
+      },{onConflict:'user_id,year,subject,q_num'}).then(function(){});
+    }
   });
   saveS();showStats();
 }

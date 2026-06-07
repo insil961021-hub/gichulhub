@@ -46,14 +46,15 @@ textarea:focus,input:focus{outline:none;border-color:#93c5fd}
 .auth-screen h1{font-size:28px;font-weight:800;margin-bottom:12px;color:#1e293b}
 .auth-screen p{color:#64748b;margin-bottom:24px}
 .badge-mod{display:inline-block;background:#fef9c3;color:#92400e;font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px;margin-left:6px}
-.summary-table{width:100%;border-collapse:collapse;font-size:13px}
-.summary-table th{background:#f1f5f9;color:#475569;font-weight:700;padding:8px 12px;text-align:left;border-bottom:2px solid #e2e8f0}
-.summary-table td{padding:8px 12px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
-.summary-table tr:hover td{background:#f8fafc}
-.ans-orig{color:#64748b}
-.ans-new{color:#2563eb;font-weight:700}
-.ans-diff{background:#eff6ff}
-.modal-large{max-width:900px}
+.modal-large{max-width:960px}
+.ans-sheet-subj{font-size:13px;font-weight:800;color:#1e293b;background:#f1f5f9;padding:7px 14px;border-radius:8px;margin:16px 0 8px}
+.ans-sheet-grid{display:grid;grid-template-columns:repeat(10,1fr);gap:4px;margin-bottom:4px}
+.ans-cell{display:flex;flex-direction:column;align-items:center;background:#fff;border:1.5px solid #e2e8f0;border-radius:8px;padding:5px 2px;min-width:0}
+.ans-cell .qn{font-size:10px;color:#94a3b8;font-weight:700}
+.ans-cell .qc{font-size:17px;font-weight:800;color:#1e293b;line-height:1.2}
+.ans-cell.modified{border-color:#f97316;background:#fff7ed}
+.ans-cell.modified .qc{color:#ea580c}
+.ans-cell.modified .qn{color:#f97316}
 </style>
 </head>
 <body>
@@ -86,27 +87,19 @@ textarea:focus,input:focus{outline:none;border-color:#93c5fd}
 <!-- Answer Summary Modal -->
 <div class="modal-overlay" id="summary-modal">
 <div class="modal modal-large">
-  <h3>📊 정답 모아보기 <span style="font-size:13px;font-weight:400;color:#64748b" id="summary-subtitle"></span></h3>
-  <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-    <select id="summary-year-filter" onchange="renderSummaryTable()" style="font-size:13px;padding:5px 10px;border:1.5px solid #e2e8f0;border-radius:8px">
-      <option value="all">전체 회차</option>
-      <option value="36">36회</option><option value="35">35회</option>
-      <option value="34">34회</option><option value="33">33회</option>
-      <option value="32">32회</option><option value="31">31회</option>
-      <option value="30">30회</option>
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+    <h3 style="margin:0">📋 정답 한눈에 보기</h3>
+    <select id="summary-year-filter" onchange="renderAnswerSheet()" style="font-size:13px;padding:5px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-weight:700">
+      <option value="36">제36회</option><option value="35">제35회</option>
+      <option value="34">제34회</option><option value="33">제33회</option>
+      <option value="32">제32회</option><option value="31">제31회</option>
+      <option value="30">제30회</option>
     </select>
-    <span style="font-size:12px;color:#94a3b8">🟦 수정됨 = DB 정답이 원본과 다른 경우</span>
+    <span style="font-size:12px;color:#f97316;font-weight:700">🟠 = 수정된 정답</span>
+    <button class="btn btn-gray" onclick="closeSummaryModal()" style="margin-left:auto;padding:5px 16px">닫기</button>
   </div>
-  <div style="overflow-x:auto;max-height:60vh;overflow-y:auto">
-    <table class="summary-table">
-      <thead><tr><th>회차</th><th>과목</th><th>문제</th><th>원본 정답</th><th>수정 정답</th></tr></thead>
-      <tbody id="summary-tbody"></tbody>
-    </table>
-  </div>
-  <div class="modal-footer">
-    <span style="margin-right:auto;font-size:12px;color:#94a3b8" id="summary-count"></span>
-    <button class="btn btn-gray" onclick="closeSummaryModal()">닫기</button>
-  </div>
+  <div id="summary-loading" style="text-align:center;padding:40px;color:#94a3b8">불러오는 중...</div>
+  <div id="summary-content" style="display:none;max-height:70vh;overflow-y:auto"></div>
 </div>
 </div>
 
@@ -481,55 +474,72 @@ document.getElementById('summary-modal').addEventListener('click', e => {
   if (e.target === document.getElementById('summary-modal')) closeSummaryModal();
 });
 
-let _summaryData = [];
+let _dbAnswerMap = {}; // year -> subject -> q_num -> answer
 
 async function showAnswerSummary() {
   document.getElementById('summary-modal').classList.add('show');
-  document.getElementById('summary-tbody').innerHTML = '<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:24px">불러오는 중...</td></tr>';
+  document.getElementById('summary-loading').style.display = 'block';
+  document.getElementById('summary-content').style.display = 'none';
 
-  const {data, error} = await supa.from('questions').select('year,subject,q_num,answer').order('year', {ascending:false});
-  if (error) { alert('불러오기 실패: ' + error.message); return; }
+  // Load all DB-modified answers
+  const {data, error} = await supa.from('questions').select('year,subject,q_num,answer');
+  _dbAnswerMap = {};
+  if (data) {
+    data.forEach(r => {
+      if (!_dbAnswerMap[r.year]) _dbAnswerMap[r.year] = {};
+      if (!_dbAnswerMap[r.year][r.subject]) _dbAnswerMap[r.year][r.subject] = {};
+      _dbAnswerMap[r.year][r.subject][r.q_num] = r.answer;
+    });
+  }
 
-  _summaryData = data || [];
-  document.getElementById('summary-subtitle').textContent = '— DB에 저장된 문제 ' + _summaryData.length + '개';
-  renderSummaryTable();
+  // Set year filter to current admin year
+  document.getElementById('summary-year-filter').value = currentYear;
+  renderAnswerSheet();
 }
 
-function renderSummaryTable() {
-  var yearFilter = document.getElementById('summary-year-filter').value;
-  var rows = _summaryData.filter(function(r) {
-    return yearFilter === 'all' || String(r.year) === yearFilter;
-  });
+function renderAnswerSheet() {
+  const CIRC = ['①','②','③','④','⑤'];
+  const year = parseInt(document.getElementById('summary-year-filter').value);
+  const subjects = EXAM_DATA[year];
+  if (!subjects) {
+    document.getElementById('summary-content').innerHTML = '<div style="text-align:center;padding:40px;color:#94a3b8">해당 회차 데이터 없음</div>';
+    document.getElementById('summary-loading').style.display = 'none';
+    document.getElementById('summary-content').style.display = 'block';
+    return;
+  }
 
-  var diffCount = 0;
-  var html = '';
-  rows.forEach(function(r) {
-    // Find original answer from EXAM_DATA
-    var origAns = null;
-    var examSubjData = EXAM_DATA[r.year];
-    if (examSubjData) {
-      examSubjData.forEach(function(s) {
-        if (s.subject === r.subject) {
-          s.questions.forEach(function(q) {
-            if ((q.q_num || q.number) === r.q_num) origAns = q.answer;
-          });
-        }
-      });
+  const dbYear = (_dbAnswerMap[year]) || {};
+  let html = '';
+
+  subjects.forEach(s => {
+    const dbSubj = dbYear[s.subject] || {};
+    html += `<div class="ans-sheet-subj">${s.subject}</div>`;
+
+    // Build rows of 10
+    const qs = s.questions;
+    for (let rowStart = 0; rowStart < qs.length; rowStart += 10) {
+      html += '<div class="ans-sheet-grid">';
+      for (let j = rowStart; j < Math.min(rowStart + 10, qs.length); j++) {
+        const q = qs[j];
+        const qnum = q.q_num || q.number;
+        const origAns = q.answer;
+        const dbAns = dbSubj[qnum];
+        const finalAns = dbAns !== undefined ? dbAns : origAns;
+        const isModified = dbAns !== undefined && dbAns !== origAns;
+        const circ = CIRC[finalAns - 1] || '?';
+        html += `<div class="ans-cell${isModified ? ' modified' : ''}">`;
+        html += `<span class="qn">${String(qnum).padStart(2,'0')}</span>`;
+        html += `<span class="qc">${circ}</span>`;
+        if (isModified) html += `<span style="font-size:9px;color:#94a3b8;text-decoration:line-through">${CIRC[origAns-1]}</span>`;
+        html += '</div>';
+      }
+      html += '</div>';
     }
-    var isDiff = origAns !== null && origAns !== r.answer;
-    if (isDiff) diffCount++;
-    html += '<tr class="' + (isDiff ? 'ans-diff' : '') + '">';
-    html += '<td>' + r.year + '회</td>';
-    html += '<td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + r.subject + '</td>';
-    html += '<td>Q' + r.q_num + '</td>';
-    html += '<td class="ans-orig">' + (origAns !== null ? '①②③④⑤'[origAns-1] + ' (' + origAns + ')' : '—') + '</td>';
-    html += '<td class="ans-new">' + '①②③④⑤'[r.answer-1] + ' (' + r.answer + ')' + (isDiff ? ' ⚠️' : '') + '</td>';
-    html += '</tr>';
   });
 
-  if (!html) html = '<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:24px">해당 조건의 데이터 없음</td></tr>';
-  document.getElementById('summary-tbody').innerHTML = html;
-  document.getElementById('summary-count').textContent = '총 ' + rows.length + '개 | 원본과 다른 정답: ' + diffCount + '개';
+  document.getElementById('summary-loading').style.display = 'none';
+  document.getElementById('summary-content').innerHTML = html;
+  document.getElementById('summary-content').style.display = 'block';
 }
 
 function closeSummaryModal() {
