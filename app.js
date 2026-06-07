@@ -82,8 +82,21 @@ function makeBlankHtml(text,itemKey){
   });
   return h;
 }
-function saveS(){try{localStorage.setItem('gh',JSON.stringify({a:state.answers,b:state.bookmarks,r:state.resolved}));}catch(e){}}
-function loadS(){try{var s=JSON.parse(localStorage.getItem('gh')||'{}');state.answers=s.a||{};state.bookmarks=s.b||{};state.resolved=s.r||{};}catch(e){}}
+function saveS(){try{localStorage.setItem('gh_v2',JSON.stringify({a:state.answers,b:state.bookmarks,r:state.resolved}));}catch(e){}}
+function loadS(){
+  try{
+    var v2=localStorage.getItem('gh_v2');
+    if(v2){var s=JSON.parse(v2);state.answers=s.a||{};state.bookmarks=s.b||{};state.resolved=s.r||{};return;}
+    // 기존 데이터(연도 없는 키) → 36회로 마이그레이션
+    var old=JSON.parse(localStorage.getItem('gh')||'{}');
+    var na={};var nb={};var nr={};
+    Object.keys(old.a||{}).forEach(function(k){na['36_'+k]=(old.a||{})[k];});
+    Object.keys(old.b||{}).forEach(function(k){nb['36_'+k]=(old.b||{})[k];});
+    Object.keys(old.r||{}).forEach(function(k){nr['36_'+k]=(old.r||{})[k];});
+    state.answers=na;state.bookmarks=nb;state.resolved=nr;
+    saveS();
+  }catch(e){state.answers={};state.bookmarks={};state.resolved={};}
+}
 loadS();
 function loadMyBooksLocal(){try{_myBooks=JSON.parse(localStorage.getItem('gh_mybooks')||'[]');}catch(e){_myBooks=[];}}
 function saveMyBooksLocal(){try{localStorage.setItem('gh_mybooks',JSON.stringify(_myBooks));}catch(e){}}
@@ -99,7 +112,7 @@ function curData(){
   });
 }
 function subj(){return curData()[state.subjectIdx];}
-function qk(q){return state.subjectIdx+'_'+q.number;}
+function qk(q){return state.examYear+'_'+state.subjectIdx+'_'+q.number;}
 function filteredQ(){
   var qs=subj().questions;
   if(state.filter==='wrong')qs=qs.filter(function(q){var a=state.answers[qk(q)];return a&&a!==q.answer&&!state.resolved[qk(q)];});
@@ -117,7 +130,7 @@ function filteredQ(){
 }
 function wrongCount(){
   var w=0;
-  curData().forEach(function(s,si){s.questions.forEach(function(q){var k=si+'_'+q.number;if(state.answers[k]&&state.answers[k]!==q.answer&&!state.resolved[k])w++;});});
+  curData().forEach(function(s,si){s.questions.forEach(function(q){var k=state.examYear+'_'+si+'_'+q.number;if(state.answers[k]&&state.answers[k]!==q.answer&&!state.resolved[k])w++;});});
   return w;
 }
 function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');}
@@ -164,8 +177,9 @@ function doLogout(){
 }
 function findQuestion(key){
   var parts=key.split('_');
-  var si=parseInt(parts[0]);
-  var qn=parseInt(parts[1]);
+  var si,qn;
+  if(parts.length>=3){si=parseInt(parts[1]);qn=parseInt(parts[2]);}
+  else{si=parseInt(parts[0]);qn=parseInt(parts[1]);}
   var data=curData();
   if(!data[si])return null;
   for(var i=0;i<data[si].questions.length;i++){
@@ -204,7 +218,7 @@ function syncFromSupa(){
       var si=-1;
       for(var i=0;i<data.length;i++){if(data[i].subject===row.subject){si=i;break;}}
       if(si<0)return;
-      var k=si+'_'+row.q_num;
+      var k=row.year+'_'+si+'_'+row.q_num;
       if(row.answer_given)state.answers[k]=row.answer_given;
       if(row.is_bookmarked)state.bookmarks[k]=true;
       if(row.is_resolved)state.resolved[k]=true;
@@ -423,7 +437,7 @@ function resolve(key){state.resolved[key]=true;saveS();saveRowToSupa(key);var qs
 function showWrong(){
   var d=curData();
   for(var i=0;i<d.length;i++){
-    if(d[i].questions.some(function(q){var k=i+'_'+q.number;return state.answers[k]&&state.answers[k]!==q.answer&&!state.resolved[k];})){
+    if(d[i].questions.some(function(q){var k=state.examYear+'_'+i+'_'+q.number;return state.answers[k]&&state.answers[k]!==q.answer&&!state.resolved[k];})){
       state.subjectIdx=i;state.filter='wrong';state.currentQ=0;renderSidebar();renderMain();return;
     }
   }
@@ -434,7 +448,7 @@ function resetSubject(i){
   if(!confirm('이 과목의 모든 풀이 기록을 삭제할까요?'))return;
   var s=curData()[i];
   s.questions.forEach(function(q){
-    var k=i+'_'+q.number;
+    var k=state.examYear+'_'+i+'_'+q.number;
     delete state.answers[k];delete state.bookmarks[k];delete state.resolved[k];
     if(_supa&&_user){_supa.from('user_progress').delete().eq('user_id',_user.id).eq('year',state.examYear).eq('subject',s.subject).eq('q_num',q.number).then(function(){});}
   });
@@ -497,9 +511,9 @@ function showStats(){
   });
   h+='</div>';
   d.forEach(function(s,i){
-    var done=s.questions.filter(function(q){return state.answers[i+'_'+q.number];}).length;
-    var cor=s.questions.filter(function(q){return state.answers[i+'_'+q.number]===q.answer;}).length;
-    var wrongQs=s.questions.filter(function(q){var k=i+'_'+q.number;return state.answers[k]&&state.answers[k]!==q.answer&&!state.resolved[k];});
+    var done=s.questions.filter(function(q){return state.answers[yr+'_'+i+'_'+q.number];}).length;
+    var cor=s.questions.filter(function(q){return state.answers[yr+'_'+i+'_'+q.number]===q.answer;}).length;
+    var wrongQs=s.questions.filter(function(q){var k=yr+'_'+i+'_'+q.number;return state.answers[k]&&state.answers[k]!==q.answer&&!state.resolved[k];});
     var pct=s.questions.length?Math.round(done/s.questions.length*100):0;
     var acc=done?Math.round(cor/done*100):0;
     h+='<div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:18px;margin-bottom:12px">';
