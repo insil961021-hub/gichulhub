@@ -55,6 +55,7 @@ textarea:focus,input:focus{outline:none;border-color:#93c5fd}
 .ans-cell.modified{border-color:#f97316;background:#fff7ed}
 .ans-cell.modified .qc{color:#ea580c}
 .ans-cell.modified .qn{color:#f97316}
+.ans-cell:hover{border-color:#2563eb;background:#eff6ff;cursor:pointer;transform:scale(1.08);transition:transform 0.1s}
 </style>
 </head>
 <body>
@@ -527,7 +528,8 @@ function renderAnswerSheet() {
         const finalAns = dbAns !== undefined ? dbAns : origAns;
         const isModified = dbAns !== undefined && dbAns !== origAns;
         const circ = CIRC[finalAns - 1] || '?';
-        html += `<div class="ans-cell${isModified ? ' modified' : ''}">`;
+        const subjIdx = subjects.indexOf(s);
+        html += `<div class="ans-cell${isModified ? ' modified' : ''}" onclick="jumpToQuestion(${year},${subjIdx},${qnum})" title="Q${qnum} 편집하기">`;
         html += `<span class="qn">${String(qnum).padStart(2,'0')}</span>`;
         html += `<span class="qc">${circ}</span>`;
         if (isModified) html += `<span style="font-size:9px;color:#94a3b8;text-decoration:line-through">${CIRC[origAns-1]}</span>`;
@@ -544,6 +546,26 @@ function renderAnswerSheet() {
 
 function closeSummaryModal() {
   document.getElementById('summary-modal').classList.remove('show');
+}
+
+async function jumpToQuestion(year, subjIdx, qnum) {
+  closeSummaryModal();
+  // 연도/과목 전환이 필요한 경우 처리
+  if (currentYear !== year) {
+    document.getElementById('sel-year').value = year;
+    currentYear = year;
+    await loadDbQuestions();
+    updateSubjectSelector();
+  }
+  if (currentSubjIdx !== subjIdx) {
+    document.getElementById('sel-subj').value = subjIdx;
+    currentSubjIdx = subjIdx;
+  }
+  loadQuestions();
+  sessionStorage.setItem('admin_year', currentYear);
+  sessionStorage.setItem('admin_subj', currentSubjIdx);
+  // 잠깐 기다렸다가 편집 모달 열기 (렌더링 완료 후)
+  setTimeout(function() { openEditModal(qnum); }, 80);
 }
 </script>
 </body>
