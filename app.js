@@ -4,9 +4,9 @@ var SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZ
 var _supa=(window.supabase&&window.supabase.createClient)?window.supabase.createClient(SUPA_URL,SUPA_KEY):null;
 var _user=null;
 var _dbQuestions={};
-var state={examYear:36,subjectIdx:0,filter:'all',search:'',currentQ:0,answers:{},bookmarks:{},resolved:{},examMode:false};
+var state={examYear:36,subjectIdx:0,filter:'all',search:'',currentQ:0,answers:{},bookmarks:{},resolved:{},examMode:false,skip:{}};
 var _myBooks=[];var _mbActive=null;var _mbQ=0;var _mbAns={};var _mbBm={};var _mbChoiceCount=5;
-var _navMode='exam';var _mbExpStyle='friendly';var _mbManualQs=[];var _jijunSubj=0;var _jijunChecked={};var _jijunBlankMode=false;var _jijunViewMode='all';
+var _navMode='exam';var _mbExpStyle='friendly';var _mbManualQs=[];var _jijunSubj=0;var _jijunChecked={};var _jijunBlankMode=false;var _jijunViewMode='all';var _showSkipped=false;var _studyLog=[];
 function loadJijunChecked(){try{_jijunChecked=JSON.parse(localStorage.getItem('gh_jijun')||'{}');}catch(e){_jijunChecked={};}}
 function saveJijunChecked(){try{localStorage.setItem('gh_jijun',JSON.stringify(_jijunChecked));}catch(e){}}
 loadJijunChecked();
@@ -82,22 +82,35 @@ function makeBlankHtml(text,itemKey){
   });
   return h;
 }
-function saveS(){try{localStorage.setItem('gh_v2',JSON.stringify({a:state.answers,b:state.bookmarks,r:state.resolved}));}catch(e){}}
+function saveS(){try{localStorage.setItem('gh_v2',JSON.stringify({a:state.answers,b:state.bookmarks,r:state.resolved,sk:state.skip}));}catch(e){}}
 function loadS(){
   try{
     var v2=localStorage.getItem('gh_v2');
-    if(v2){var s=JSON.parse(v2);state.answers=s.a||{};state.bookmarks=s.b||{};state.resolved=s.r||{};return;}
+    if(v2){var s=JSON.parse(v2);state.answers=s.a||{};state.bookmarks=s.b||{};state.resolved=s.r||{};state.skip=s.sk||{};return;}
     // 기존 데이터(연도 없는 키) → 36회로 마이그레이션
     var old=JSON.parse(localStorage.getItem('gh')||'{}');
     var na={};var nb={};var nr={};
     Object.keys(old.a||{}).forEach(function(k){na['36_'+k]=(old.a||{})[k];});
     Object.keys(old.b||{}).forEach(function(k){nb['36_'+k]=(old.b||{})[k];});
     Object.keys(old.r||{}).forEach(function(k){nr['36_'+k]=(old.r||{})[k];});
-    state.answers=na;state.bookmarks=nb;state.resolved=nr;
+    state.answers=na;state.bookmarks=nb;state.resolved=nr;state.skip={};
     saveS();
-  }catch(e){state.answers={};state.bookmarks={};state.resolved={};}
+  }catch(e){state.answers={};state.bookmarks={};state.resolved={};state.skip={};}
 }
-loadS();
+function loadStudyLog(){try{_studyLog=JSON.parse(localStorage.getItem('gh_log')||'[]');}catch(e){_studyLog=[];}}
+function saveStudyLog(){try{localStorage.setItem('gh_log',JSON.stringify(_studyLog));}catch(e){}}
+function addStudyLog(){
+  var s=subj();
+  _studyLog.push({y:state.examYear,subj:s.subject,d:new Date().toISOString().slice(0,10),ts:Date.now()});
+  saveStudyLog();
+  alert('기록됐어요 ✅ 학습일지에서 확인해보세요!');
+  renderMain();
+}
+function toggleSkip(key){
+  if(state.skip[key]){delete state.skip[key];}else{state.skip[key]=true;}
+  saveS();renderMain();renderSidebar();
+}
+loadS();loadStudyLog();
 function saveNavState(){
   try{localStorage.setItem('gh_nav',JSON.stringify({
     y:state.examYear,s:state.subjectIdx,q:state.currentQ,f:state.filter,
@@ -127,13 +140,14 @@ function curData(){
   return base.map(function(s){
     var sdb=ydb[s.subject];
     if(!sdb)return s;
-    return {year:s.year,exam:s.exam,subject:s.subject,session:s.session,questions:s.questions.map(function(q){var n=q.q_num||q.number;return(sdb[n]?sdb[n]:q);})};
+    return {year:s.year,exam:s.exam,subject:s.subject,session:s.session,questions:s.questions.map(function(q){var n=q.q_num||q.number;return(sdb[n]?sdb[n]:q);}).filter(function(q){return !q.is_hidden;})};
   });
 }
 function subj(){return curData()[state.subjectIdx];}
 function qk(q){return state.examYear+'_'+state.subjectIdx+'_'+q.number;}
 function filteredQ(){
   var qs=subj().questions;
+  if(!_showSkipped)qs=qs.filter(function(q){return !state.skip[qk(q)];});
   if(state.filter==='wrong')qs=qs.filter(function(q){var a=state.answers[qk(q)];return a&&a!==q.answer&&!state.resolved[qk(q)];});
   if(state.filter==='bm')qs=qs.filter(function(q){return state.bookmarks[qk(q)];});
   if(state.search){
@@ -167,7 +181,7 @@ function loadDbQuestions(){
       if(!_dbQuestions[row.year])_dbQuestions[row.year]={};
       if(!_dbQuestions[row.year][row.subject])_dbQuestions[row.year][row.subject]={};
       var num=row.q_num||row.number;
-      _dbQuestions[row.year][row.subject][num]={number:num,q_num:num,question:row.question,condition:row.condition||'',choices:row.choices,answer:row.answer,explanation:row.explanation||'',image_url:row.image_url||null};
+      _dbQuestions[row.year][row.subject][num]={number:num,q_num:num,question:row.question,condition:row.condition||'',choices:row.choices,answer:row.answer,explanation:row.explanation||'',image_url:row.image_url||null,is_hidden:row.is_hidden||false};
     });
     renderSidebar();renderMain();
   });
@@ -396,6 +410,8 @@ function renderMain(){
   h+='<button class="filter-btn'+(state.filter==='all'?' active':'')+'" onclick="setFilter(\'all\')">전체 '+s.questions.length+'문제</button>';
   h+='<button class="filter-btn'+(state.filter==='wrong'?' active':'')+'" onclick="setFilter(\'wrong\')">오답만</button>';
   h+='<button class="filter-btn'+(state.filter==='bm'?' active':'')+'" onclick="setFilter(\'bm\')">★ 북마크</button>';
+  var skipCount=s.questions.filter(function(q){return state.skip[qk(q)];}).length;
+  if(skipCount>0)h+='<button class="filter-btn'+(_showSkipped?' active':'')+'" onclick="_showSkipped=!_showSkipped;state.currentQ=0;renderMain()" style="'+(_showSkipped?'background:#fef2f2;border-color:#fca5a5;color:#ef4444':'color:#94a3b8')+'">✕ 건너뜀 '+skipCount+'</button>';
   h+='<button class="filter-btn'+(state.examMode?' active':'')+'" onclick="toggleExamMode()" '+(state.examMode?'style="background:#fff3cd;border-color:#f59e0b;color:#92400e"':'')+'>&#x1F4DD; '+(state.examMode?'&#x2705; &#xC2DC;&#xD5D8;&#xBAA8;&#xB4DC;':'&#xC2DC;&#xD5D8;&#xBAA8;&#xB4DC;')+'</button>';
   if(state.examMode){h+='<button onclick="gradeExam()" style="padding:5px 14px;border-radius:20px;font-size:13px;font-weight:700;cursor:pointer;background:#ef4444;color:#fff;border:1.5px solid #ef4444">&#x1F4CB; &#xCC44;&#xC810;&#xD558;&#xAE30;</button>';}
   h+='<input type="text" id="searchBox" placeholder="&#x1F50D; &#xD0A4;&#xC6CC;&#xB4DC; &#xAC80;&#xC0C9;..." value="'+esc(state.search)+'" oninput="setSearch(this.value)" style="margin-left:auto;padding:5px 12px;border:1.5px solid #e2e8f0;border-radius:20px;font-size:13px;outline:none;width:180px">';
@@ -403,16 +419,19 @@ function renderMain(){
   h+='<div class="progress-card"><div class="progress-info"><h3>학습 진도</h3>';
   h+='<div class="pbar-wrap"><div class="pbar-fill" style="width:'+pct+'%"></div></div>';
   h+='<div class="progress-text">'+done+'/'+s.questions.length+'문제 완료 &middot; 정답률 '+(done?Math.round(cor/done*100):0)+'%</div></div>';
+  var todayLog=_studyLog.filter(function(l){return l.y===state.examYear&&l.subj===s.subject&&l.d===new Date().toISOString().slice(0,10);}).length;
   h+='<div class="progress-stats"><div class="stat"><div class="stat-num">'+cor+'</div><div class="stat-label">정답</div></div>';
   h+='<div class="stat"><div class="stat-num">'+(done-cor)+'</div><div class="stat-label">오답</div></div>';
-  h+='<div class="stat"><div class="stat-num">'+(s.questions.length-done)+'</div><div class="stat-label">미풀이</div></div></div></div>';
+  h+='<div class="stat"><div class="stat-num">'+(s.questions.length-done)+'</div><div class="stat-label">미풀이</div></div>';
+  h+='<button onclick="addStudyLog()" style="margin-left:auto;padding:4px 12px;background:'+(todayLog?'#dcfce7':'#f1f5f9')+';color:'+(todayLog?'#16a34a':'#475569')+';border:1.5px solid '+(todayLog?'#86efac':'#e2e8f0')+';border-radius:8px;font-size:12px;font-weight:700;cursor:pointer" title="학습일지에 오늘 기록 추가">'+(todayLog?'✅ 오늘 완료':'📅 오늘 완료')+'</button>';
+  h+='</div></div>';
   if(!qs.length){
     var emptyMsg=state.search?'"'+state.search+'" 검색 결과가 없어요!':state.filter==='wrong'?'오답이 없어요!':'해당 문제가 없어요!';
     h+='<div class="empty"><div style="font-size:48px">'+(state.search?'🔍':'🎉')+'</div><p>'+emptyMsg+'</p></div>';
     document.getElementById('main').innerHTML=h;return;
   }
   var q=qs[state.currentQ];var key=qk(q);
-  var chosen=state.answers[key];var isAns=!!chosen;var isBm=!!state.bookmarks[key];
+  var chosen=state.answers[key];var isAns=!!chosen;var isBm=!!state.bookmarks[key];var isSkip=!!state.skip[key];
   var half=Math.ceil(qs.length/2);var r1='',r2='';
   qs.forEach(function(qq,i){
     var k=qk(qq);var a=state.answers[k];
@@ -423,6 +442,7 @@ function renderMain(){
   h+='<div class="q-card"><div class="q-header"><span class="q-num">Q'+q.number+'</span>'+(q.is_amended?'<span style="display:inline-block;background:#ff6b35;color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;margin-left:6px;vertical-align:middle">개정</span>':'')+'<div class="q-actions">';
   if(state.filter==='wrong'&&isAns)h+='<button class="btn-resolve" onclick="resolve(\''+key+'\')">✓ 이해했어요</button>';
   h+='<button class="btn-icon'+(isBm?' bookmarked':'')+'" onclick="toggleBm(\''+key+'\')">'+(isBm?'★':'☆')+'</button>';
+  h+='<button onclick="toggleSkip(\''+key+'\')" title="'+(isSkip?'건너뛰기 해제':'이 문제 건너뛰기')+'" style="border:none;background:none;cursor:pointer;font-size:13px;font-weight:700;padding:4px 6px;border-radius:6px;color:'+(isSkip?'#ef4444':'#cbd5e1')+'">'+(isSkip?'✕ON':'✕')+'</button>';
   h+='</div></div><div class="q-body"><div class="q-text">'+highlight(q.question)+'</div>';
   if(q.condition)h+='<div class="q-condition">'+esc(q.condition)+'</div>';
   if(q.image_url)h+='<div style="margin-bottom:12px"><img src="'+q.image_url+'" style="max-width:100%;border-radius:8px;border:1px solid #e2e8f0" alt="문제 이미지"></div>';
@@ -431,7 +451,8 @@ function renderMain(){
     var idx=i+1;var cls='choice'+(isAns?(state.examMode?' selected':(idx===q.answer?' correct':idx===chosen?' wrong':'')):'');
     h+='<button class="'+cls+'" onclick="pick(\''+key+'\','+idx+','+q.answer+')"'+(isAns?' disabled':'')+'>'+esc(c)+'</button>';
   });
-  h+='</div><div class="explanation'+(isAns?' show':'')+'"><div class="explanation-title">💡 해설</div>'+esc(q.explanation)+'</div>';
+  h+='</div>';
+  if(q.explanation)h+='<div class="explanation'+(isAns?' show':'')+'"><div class="explanation-title">💡 해설</div>'+esc(q.explanation)+'</div>';
   h+='</div><div class="q-footer"><div class="q-nums"><div class="q-nums-row">'+r1+'</div><div class="q-nums-row">'+r2+'</div></div>';
   h+='<button class="btn-next" onclick="nextQ()">다음 →</button></div></div>';
   document.getElementById('main').innerHTML=h;
@@ -493,6 +514,43 @@ function deleteSession(id){
   if(!_supa||!_user)return;
   _supa.from('study_sessions').delete().eq('id',id).eq('user_id',_user.id).then(function(){showHistory();});
 }
+function showStudyLog(){
+  var h='<div style="padding:20px;max-width:700px">';
+  h+='<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">';
+  h+='<button onclick="showStats()" style="padding:6px 14px;background:#f1f5f9;border:none;border-radius:8px;font-weight:700;cursor:pointer">← 통계로</button>';
+  h+='<h2 style="font-size:20px;font-weight:800">📅 학습일지</h2>';
+  h+='<button onclick="if(confirm(\'모든 학습일지를 삭제할까요?\')){{_studyLog=[];saveStudyLog();showStudyLog();}}" style="margin-left:auto;padding:5px 12px;background:#fef2f2;color:#ef4444;border:1.5px solid #fecaca;border-radius:8px;font-size:12px;cursor:pointer">전체 삭제</button>';
+  h+='</div>';
+  if(!_studyLog.length){
+    h+='<div style="text-align:center;padding:60px 20px;color:#94a3b8"><div style="font-size:48px;margin-bottom:12px">📭</div><p>아직 기록이 없어요.<br>문제를 풀고 <b>📅 오늘 완료</b> 버튼을 눌러보세요!</p></div>';
+    h+='</div>';document.getElementById('main').innerHTML=h;return;
+  }
+  // 날짜별 그룹핑
+  var byDate={};
+  _studyLog.slice().reverse().forEach(function(l){
+    if(!byDate[l.d])byDate[l.d]=[];
+    byDate[l.d].push(l);
+  });
+  Object.keys(byDate).sort(function(a,b){return b.localeCompare(a);}).forEach(function(date){
+    var entries=byDate[date];
+    var d=new Date(date);
+    var dateStr=(d.getMonth()+1)+'월 '+d.getDate()+'일 ('+['일','월','화','수','목','금','토'][d.getDay()]+'요일)';
+    h+='<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:12px">';
+    h+='<div style="font-size:13px;font-weight:800;color:#1e293b;margin-bottom:10px">📆 '+dateStr+'</div>';
+    entries.forEach(function(l,i){
+      var roundNum=_studyLog.filter(function(x){return x.y===l.y&&x.subj===l.subj&&x.ts<=l.ts;}).length;
+      h+='<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:#f8fafc;border-radius:8px;margin-bottom:4px">';
+      h+='<span style="font-size:16px">✅</span>';
+      h+='<span style="font-size:13px;font-weight:700;color:#1e293b">'+l.y+'회 '+l.subj+'</span>';
+      h+='<span style="margin-left:auto;font-size:11px;color:#fff;background:#2563eb;padding:2px 8px;border-radius:10px">'+roundNum+'회독</span>';
+      h+='<button onclick="if(confirm(\'이 기록을 삭제할까요?\')){{_studyLog.splice(_studyLog.findIndex(function(x){return x.ts==='+l.ts+';}),1);saveStudyLog();showStudyLog();}}" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:14px;padding:2px">✕</button>';
+      h+='</div>';
+    });
+    h+='</div>';
+  });
+  h+='</div>';
+  document.getElementById('main').innerHTML=h;
+}
 function showHistory(){
   var h='<div style="padding:20px;max-width:700px">';
   h+='<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">';
@@ -533,7 +591,8 @@ function showStats(){
   h+='<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">';
   h+='<button onclick="renderMain()" style="padding:6px 14px;background:#f1f5f9;border:none;border-radius:8px;font-weight:700;cursor:pointer">← 돌아가기</button>';
   h+='<h2 style="font-size:20px;font-weight:800;color:#1e293b">📊 내 통계</h2>';
-  h+='<button onclick="showHistory()" style="margin-left:auto;padding:6px 14px;background:#eff6ff;color:#2563eb;border:1.5px solid #bfdbfe;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">📋 시험 기록</button>';
+  h+='<button onclick="showStudyLog()" style="margin-left:auto;padding:6px 14px;background:#f0fdf4;color:#16a34a;border:1.5px solid #86efac;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">📅 학습일지</button>';
+  h+='<button onclick="showHistory()" style="padding:6px 14px;background:#eff6ff;color:#2563eb;border:1.5px solid #bfdbfe;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">📋 시험 기록</button>';
   h+='</div>';
   h+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">';
   [36,35,34,33,32,31,30].forEach(function(y){

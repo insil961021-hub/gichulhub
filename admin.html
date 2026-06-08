@@ -148,7 +148,9 @@ textarea:focus,input:focus{outline:none;border-color:#93c5fd}
     </label>
   </div>
   <div class="modal-footer">
-    <button class="btn btn-danger" id="btn-revert" onclick="revertQuestion()" style="display:none;margin-right:auto">원본으로 되돌리기</button>
+    <button class="btn btn-danger" id="btn-revert" onclick="revertQuestion()" style="display:none;margin-right:auto">↩ 원본으로</button>
+    <button class="btn" id="btn-hide-q" onclick="hideQuestion()" style="display:none;background:#fef9c3;color:#92400e;border:1.5px solid #fde68a">🙈 숨기기</button>
+    <button class="btn btn-danger" id="btn-delete-q" onclick="deleteQuestion()" style="display:none">🗑️ 삭제</button>
     <button class="btn btn-gray" onclick="closeModal()">취소</button>
     <button class="btn btn-primary" onclick="saveQuestion()">💾 저장</button>
   </div>
@@ -356,6 +358,9 @@ async function openEditModal(qnum) {
   
   document.getElementById('edit-amended').checked = !!(src.is_amended);
   document.getElementById('btn-revert').style.display = dbQ ? 'inline-block' : 'none';
+  document.getElementById('btn-delete-q').style.display = dbQ ? 'inline-block' : 'none';
+  document.getElementById('btn-hide-q').style.display = 'inline-block';
+  document.getElementById('btn-hide-q').textContent = src.is_hidden ? '👁 숨김 해제' : '🙈 숨기기';
   document.getElementById('modal').classList.add('show');
 }
 
@@ -375,6 +380,8 @@ function openAddModal() {
   document.getElementById('btn-remove-img').style.display = 'none';
   document.getElementById('edit-amended').checked = false;
   document.getElementById('btn-revert').style.display = 'none';
+  document.getElementById('btn-delete-q').style.display = 'none';
+  document.getElementById('btn-hide-q').style.display = 'none';
   document.getElementById('modal').classList.add('show');
 }
 
@@ -457,6 +464,56 @@ async function saveQuestion() {
   loadQuestions();
 }
 
+async function deleteQuestion() {
+  if (!editingQNum) return;
+  if (!confirm(`Q${editingQNum} DB 데이터를 삭제할까요?\n(JS 원본 데이터로 되돌아갑니다)`)) return;
+  const data = EXAM_DATA[currentYear];
+  const subj = data[currentSubjIdx];
+  const {error} = await supa.from('questions').delete()
+    .eq('year', currentYear).eq('subject', subj.subject).eq('q_num', editingQNum);
+  if (error) { alert('삭제 실패: ' + error.message); return; }
+  alert('삭제됐어요!');
+  closeModal();
+  await loadDbQuestions();
+  loadQuestions();
+}
+
+async function hideQuestion() {
+  if (!editingQNum && editingQNum !== 0) return;
+  const data = EXAM_DATA[currentYear];
+  const subj = data[currentSubjIdx];
+  // Check current hidden state
+  let dbQ = null;
+  const modSet = (dbQuestions[currentYear] && dbQuestions[currentYear][subj.subject]) || new Set();
+  if (modSet.has(editingQNum)) {
+    const {data: rows} = await supa.from('questions').select('is_hidden').eq('year',currentYear).eq('subject',subj.subject).eq('q_num',editingQNum).single();
+    dbQ = rows;
+  }
+  const nowHidden = dbQ && dbQ.is_hidden;
+  const qSrc = subj.questions.find(q => (q.q_num||q.number) === editingQNum) || {};
+  const choices = [];
+  for (let i = 1; i <= 5; i++) {
+    const el = document.getElementById('choice-'+i);
+    if (el && el.value.trim()) choices.push(el.value.trim());
+  }
+  const row = {
+    year: currentYear, subject: subj.subject, session: subj.session,
+    q_num: editingQNum,
+    question: document.getElementById('edit-question').value.trim() || qSrc.question || '문제 없음',
+    choices: choices.length ? choices : (qSrc.choices || ['①','②','③','④','⑤']),
+    answer: getSelectedAnswer() || qSrc.answer || 1,
+    is_hidden: !nowHidden,
+    is_amended: document.getElementById('edit-amended').checked,
+    updated_at: new Date().toISOString()
+  };
+  const {error} = await supa.from('questions').upsert(row, {onConflict:'year,subject,q_num'});
+  if (error) { alert('숨기기 실패: ' + error.message); return; }
+  alert(!nowHidden ? '숨겼어요! 🙈 사이트에서 보이지 않습니다.' : '다시 보이게 됐어요! 👁');
+  closeModal();
+  await loadDbQuestions();
+  loadQuestions();
+}
+
 async function revertQuestion() {
   if (!confirm('DB 수정사항을 삭제하고 원본 JS 데이터로 되돌릴까요?')) return;
   const data = EXAM_DATA[currentYear];
@@ -523,6 +580,7 @@ function renderAnswerSheet() {
       for (let j = rowStart; j < Math.min(rowStart + 10, qs.length); j++) {
         const q = qs[j];
         const qnum = q.q_num || q.number;
+        if (!qnum || isNaN(qnum)) continue;
         const origAns = q.answer;
         const dbAns = dbSubj[qnum];
         const finalAns = dbAns !== undefined ? dbAns : origAns;
