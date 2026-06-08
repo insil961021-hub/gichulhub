@@ -414,6 +414,7 @@ function renderMain(){
   if(skipCount>0)h+='<button class="filter-btn'+(_showSkipped?' active':'')+'" onclick="_showSkipped=!_showSkipped;state.currentQ=0;renderMain()" style="'+(_showSkipped?'background:#fef2f2;border-color:#fca5a5;color:#ef4444':'color:#94a3b8')+'">✕ 건너뜀 '+skipCount+'</button>';
   h+='<button class="filter-btn'+(state.examMode?' active':'')+'" onclick="toggleExamMode()" '+(state.examMode?'style="background:#fff3cd;border-color:#f59e0b;color:#92400e"':'')+'>&#x1F4DD; '+(state.examMode?'&#x2705; &#xC2DC;&#xD5D8;&#xBAA8;&#xB4DC;':'&#xC2DC;&#xD5D8;&#xBAA8;&#xB4DC;')+'</button>';
   if(state.examMode){h+='<button onclick="gradeExam()" style="padding:5px 14px;border-radius:20px;font-size:13px;font-weight:700;cursor:pointer;background:#ef4444;color:#fff;border:1.5px solid #ef4444">&#x1F4CB; &#xCC44;&#xC810;&#xD558;&#xAE30;</button>';}
+  h+='<button class="filter-btn" onclick="resetSubject(state.subjectIdx,true)" style="color:#ef4444;border-color:#fecaca">&#x1F504; &#xB2E4;&#xC2DC;&#xD480;&#xAE30;</button>';
   h+='<input type="text" id="searchBox" placeholder="&#x1F50D; &#xD0A4;&#xC6CC;&#xB4DC; &#xAC80;&#xC0C9;..." value="'+esc(state.search)+'" oninput="setSearch(this.value)" style="margin-left:auto;padding:5px 12px;border:1.5px solid #e2e8f0;border-radius:20px;font-size:13px;outline:none;width:180px">';
   h+='</div>';
   h+='<div class="progress-card"><div class="progress-info"><h3>학습 진도</h3>';
@@ -487,7 +488,7 @@ function showWrong(){
   alert('오답이 없어요! 🎉');
 }
 function goToByNum(num){var qs=filteredQ();for(var i=0;i<qs.length;i++){if(qs[i].number===num){state.currentQ=i;return;}}state.currentQ=0;}
-function resetSubject(i){
+function resetSubject(i,stayHere){
   if(!confirm('이 과목의 풀이 기록을 초기화할까요? (별표는 유지됩니다)'))return;
   var s=curData()[i];
   s.questions.forEach(function(q){
@@ -503,7 +504,9 @@ function resetSubject(i){
       },{onConflict:'user_id,year,subject,q_num'}).then(function(){});
     }
   });
-  saveS();showStats();
+  state.currentQ=0;state.filter='all';
+  saveS();
+  if(stayHere){renderMain();renderSidebar();}else{showStats();}
 }
 function saveSessionToSupa(year,subject,cor,wrongCount,total,wrongNums){
   if(!_supa||!_user)return;

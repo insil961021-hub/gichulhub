@@ -173,7 +173,8 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
 const EXAM_DATA = {36:EXAM_DATA_36,35:EXAM_DATA_35,34:EXAM_DATA_34,33:EXAM_DATA_33,32:EXAM_DATA_32,31:EXAM_DATA_31,30:EXAM_DATA_30};
 
 let currentUser = null;
-let dbQuestions = {};
+let dbQuestions = {};   // year → subject → Set of q_nums (for quick lookup)
+let dbRowData = {};     // year → subject → q_num → full row (for DB-only questions)
 let currentYear = 36;
 let currentSubjIdx = 0;
 let editingQNum = null;
@@ -235,13 +236,17 @@ async function initPanel() {
 }
 
 async function loadDbQuestions() {
-  const {data} = await supa.from('questions').select('year,subject,q_num');
+  const {data} = await supa.from('questions').select('*');
   dbQuestions = {};
+  dbRowData = {};
   if (data) {
     data.forEach(r => {
       if (!dbQuestions[r.year]) dbQuestions[r.year] = {};
       if (!dbQuestions[r.year][r.subject]) dbQuestions[r.year][r.subject] = new Set();
       dbQuestions[r.year][r.subject].add(r.q_num);
+      if (!dbRowData[r.year]) dbRowData[r.year] = {};
+      if (!dbRowData[r.year][r.subject]) dbRowData[r.year][r.subject] = {};
+      dbRowData[r.year][r.subject][r.q_num] = r;
     });
   }
 }
@@ -267,18 +272,38 @@ function loadQuestions() {
   const qs = subj.questions;
   document.getElementById('q-count').textContent = qs.length + '문제';
   const modSet = (dbQuestions[currentYear] && dbQuestions[currentYear][subj.subject]) || new Set();
+  const jsQNums = new Set(qs.map(q => q.q_num || q.number));
   let html = '';
+
+  // JS 원본 문제 목록
   qs.forEach(q => {
     const isMod = modSet.has(q.q_num || q.number);
     const num = q.q_num || q.number;
+    if (!num && num !== 0) return;
     const text = (q.question || '').replace(/<[^>]*>/g,'').substring(0,80);
     html += `<div class="q-item${isMod?' modified':''}" onclick="openEditModal(${num})">`;
     html += `<span class="q-num${isMod?' mod':''}">Q${num}</span>`;
-    html += `<span class="q-text">${text}${isMod?'<span class="badge-mod">수정됨</span>':''}${q.image_url?'':''}`;
+    html += `<span class="q-text">${text}${isMod?'<span class="badge-mod">수정됨</span>':''}`;
     html += `</span>`;
     if (q.image_url) html += `<span class="q-img-badge">🖼️</span>`;
     html += `</div>`;
   });
+
+  // DB에서 추가된 문제 (JS에 없는 것)
+  const dbSubj = (dbRowData[currentYear] && dbRowData[currentYear][subj.subject]) || {};
+  const dbOnlyNums = Object.keys(dbSubj).map(Number).filter(n => !jsQNums.has(n)).sort((a,b)=>a-b);
+  if (dbOnlyNums.length > 0) {
+    html += `<div style="margin:12px 0 6px;font-size:11px;font-weight:700;color:#7c3aed;border-top:1.5px dashed #ddd8fe;padding-top:10px">📝 내가 추가한 문제</div>`;
+    dbOnlyNums.forEach(num => {
+      const r = dbSubj[num];
+      const text = (r.question || '').replace(/<[^>]*>/g,'').substring(0,80);
+      html += `<div class="q-item modified" onclick="openEditModal(${num})" style="border-color:#7c3aed;background:#faf5ff">`;
+      html += `<span class="q-num mod" style="color:#7c3aed">Q${num}</span>`;
+      html += `<span class="q-text">${text}<span class="badge-mod" style="background:#7c3aed">추가됨</span></span>`;
+      html += `</div>`;
+    });
+  }
+
   document.getElementById('q-list').innerHTML = html;
 }
 
