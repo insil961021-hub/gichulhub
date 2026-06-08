@@ -98,6 +98,25 @@ function loadS(){
   }catch(e){state.answers={};state.bookmarks={};state.resolved={};}
 }
 loadS();
+function saveNavState(){
+  try{localStorage.setItem('gh_nav',JSON.stringify({
+    y:state.examYear,s:state.subjectIdx,q:state.currentQ,f:state.filter,
+    nm:_navMode,js:_jijunSubj
+  }));}catch(e){}
+}
+function loadNavState(){
+  try{
+    var n=JSON.parse(localStorage.getItem('gh_nav')||'null');
+    if(!n)return;
+    if(n.y&&EXAM_DATA[n.y])state.examYear=n.y;
+    if(n.s!==undefined&&n.s>=0)state.subjectIdx=parseInt(n.s)||0;
+    if(n.q!==undefined&&n.q>=0)state.currentQ=parseInt(n.q)||0;
+    if(n.f&&['all','wrong','bm'].indexOf(n.f)>=0)state.filter=n.f;
+    if(n.nm&&['exam','studio','jijun'].indexOf(n.nm)>=0)_navMode=n.nm;
+    if(n.js!==undefined&&n.js>=0)_jijunSubj=parseInt(n.js)||0;
+  }catch(e){}
+}
+loadNavState();
 function loadMyBooksLocal(){try{_myBooks=JSON.parse(localStorage.getItem('gh_mybooks')||'[]');}catch(e){_myBooks=[];}}
 function saveMyBooksLocal(){try{localStorage.setItem('gh_mybooks',JSON.stringify(_myBooks));}catch(e){}}
 loadMyBooksLocal();
@@ -225,7 +244,8 @@ function syncFromSupa(){
     });
     saveS();
     renderSidebar();
-    renderMain();
+    if(_navMode==='jijun'){showJijun();}
+    else if(_navMode==='exam'){renderMain();}
   });
   loadMyBooks();
 }
@@ -316,6 +336,7 @@ function showJijun(){
     h+='<div class="empty"><div style="font-size:48px">☆</div><p>★ 버튼을 눌러 지문을 모아보세요!</p></div>';
   }
   document.getElementById('main').innerHTML=h;
+  saveNavState();
 }
 function renderSidebar(){
   if(_navMode==='jijun'){
@@ -414,6 +435,7 @@ function renderMain(){
   h+='</div><div class="q-footer"><div class="q-nums"><div class="q-nums-row">'+r1+'</div><div class="q-nums-row">'+r2+'</div></div>';
   h+='<button class="btn-next" onclick="nextQ()">다음 →</button></div></div>';
   document.getElementById('main').innerHTML=h;
+  saveNavState();
 }
 
 function selYear(y){_mbActive=null;state.examYear=y;state.subjectIdx=0;state.currentQ=0;state.filter='all';state.search='';renderSidebar();renderMain();closeMenu();}
