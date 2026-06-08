@@ -140,7 +140,7 @@ function curData(){
   return base.map(function(s){
     var sdb=ydb[s.subject];
     if(!sdb)return s;
-    return {year:s.year,exam:s.exam,subject:s.subject,session:s.session,questions:s.questions.map(function(q){var n=q.q_num||q.number;return(sdb[n]?sdb[n]:q);}).filter(function(q){return !q.is_hidden;})};
+    return {year:s.year,exam:s.exam,subject:s.subject,session:s.session,questions:s.questions.map(function(q){var n=q.q_num||q.number;return(sdb[n]?sdb[n]:q);}).filter(function(q){var n=q.q_num||q.number;return !q.is_hidden&&(n||n===0);})};
   });
 }
 function subj(){return curData()[state.subjectIdx];}

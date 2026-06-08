@@ -149,7 +149,6 @@ textarea:focus,input:focus{outline:none;border-color:#93c5fd}
   </div>
   <div class="modal-footer">
     <button class="btn btn-danger" id="btn-revert" onclick="revertQuestion()" style="display:none;margin-right:auto">↩ 원본으로</button>
-    <button class="btn" id="btn-hide-q" onclick="hideQuestion()" style="display:none;background:#fef9c3;color:#92400e;border:1.5px solid #fde68a">🙈 숨기기</button>
     <button class="btn btn-danger" id="btn-delete-q" onclick="deleteQuestion()" style="display:none">🗑️ 삭제</button>
     <button class="btn btn-gray" onclick="closeModal()">취소</button>
     <button class="btn btn-primary" onclick="saveQuestion()">💾 저장</button>
@@ -276,10 +275,18 @@ function loadQuestions() {
   let html = '';
 
   // JS 원본 문제 목록
-  qs.forEach(q => {
-    const isMod = modSet.has(q.q_num || q.number);
+  qs.forEach((q, qi) => {
     const num = q.q_num || q.number;
-    if (!num && num !== 0) return;
+    // 번호 없는 깨진 JS 데이터 — 특별 표시, 클릭하면 경고
+    if (!num && num !== 0) {
+      const text = (q.question || '(문제 내용 없음)').replace(/<[^>]*>/g,'').substring(0,60);
+      html += `<div class="q-item" onclick="openBrokenModal(${qi})" style="border-color:#f87171;background:#fff5f5;cursor:pointer">`;
+      html += `<span class="q-num" style="color:#ef4444">Q⚠️</span>`;
+      html += `<span class="q-text">${text}<span class="badge-mod" style="background:#ef4444">번호없음</span></span>`;
+      html += `</div>`;
+      return;
+    }
+    const isMod = modSet.has(num);
     const text = (q.question || '').replace(/<[^>]*>/g,'').substring(0,80);
     html += `<div class="q-item${isMod?' modified':''}" onclick="openEditModal(${num})">`;
     html += `<span class="q-num${isMod?' mod':''}">Q${num}</span>`;
@@ -384,8 +391,6 @@ async function openEditModal(qnum) {
   document.getElementById('edit-amended').checked = !!(src.is_amended);
   document.getElementById('btn-revert').style.display = dbQ ? 'inline-block' : 'none';
   document.getElementById('btn-delete-q').style.display = dbQ ? 'inline-block' : 'none';
-  document.getElementById('btn-hide-q').style.display = 'inline-block';
-  document.getElementById('btn-hide-q').textContent = src.is_hidden ? '👁 숨김 해제' : '🙈 숨기기';
   document.getElementById('modal').classList.add('show');
 }
 
@@ -406,7 +411,6 @@ function openAddModal() {
   document.getElementById('edit-amended').checked = false;
   document.getElementById('btn-revert').style.display = 'none';
   document.getElementById('btn-delete-q').style.display = 'none';
-  document.getElementById('btn-hide-q').style.display = 'none';
   document.getElementById('modal').classList.add('show');
 }
 
@@ -487,6 +491,14 @@ async function saveQuestion() {
   closeModal();
   await loadDbQuestions();
   loadQuestions();
+}
+
+function openBrokenModal(jsIndex) {
+  const data = EXAM_DATA[currentYear];
+  const subj = data[currentSubjIdx];
+  const q = subj.questions[jsIndex];
+  const text = (q.question || '(내용 없음)').substring(0, 100);
+  alert(`⚠️ 번호가 없는 깨진 데이터입니다.\n\n내용: ${text}\n\n이 문제는 JS 데이터 파일에 직접 들어있어서\n어드민에서 삭제할 수 없어요.\n\n📁 exam_data_${currentYear}.js 파일에서\n"${subj.subject}" 과목의 questions 배열을 열어\n해당 항목을 직접 삭제해주세요.`);
 }
 
 async function deleteQuestion() {
