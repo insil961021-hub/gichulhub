@@ -391,7 +391,7 @@ function renderSidebar(){
   h+='</div><div class="sidebar-section"><span class="sidebar-label">2교시</span>';
   curData().forEach(function(s,i){if(s.session!==2)return;h+='<div class="sidebar-item'+(state.subjectIdx===i?' active':'')+'" onclick="selSubj('+i+')">'+s.subject+'</div>';});
   h+='</div><hr class="sidebar-divider"><div class="sidebar-section">';
-  h+='<div class="sidebar-item" onclick="showMixPicker();closeMenu()">&#x1F500; &#xC11D;&#xC5B4;&#xD480;&#xAE30;</div>';
+  h+='<div class="sidebar-item" onclick="showMixPicker();closeMenu()">&#x1F500; 섞어풀기</div>';
   h+='<div class="sidebar-item" onclick="showWrong();closeMenu()">📕 오답노트'+(w>0?'<span class="sidebar-badge">'+w+'</span>':'')+'</div>';
   h+='<div class="sidebar-item" onclick="showStats()">📊 내 통계</div>';
   h+='<div class="sidebar-item" onclick="showPdf();closeMenu()">📥 PDF 다운로드</div>';
@@ -528,7 +528,7 @@ function showMixPicker(){
   var subjs=getAllSubjectNames();
   var s1=subjs.filter(function(s){return s.session===1;});
   var s2=subjs.filter(function(s){return s.session===2;});
-  var h='<div class="page-header"><h1>&#x1F500; &#xC11D;&#xC5B4;&#xD480;&#xAE30;</h1><p>30~36&#xD68C; &#xBB38;&#xC81C;&#xB97C; &#xB79C;&#xB364;&#xC73C;&#xB85C; 40&#xBB38;&#xC81C; &#xCD9C;&#xC81C;! &#xB2E4;&#xC2DC;&#xD480;&#xAE30;&#xB9C8;&#xB2E4; &#xC0C8;&#xB85C;&#xC6B4; &#xBB38;&#xC81C;&#xAC00; &#xB098;&#xC640;&#xC694;.</p></div>';
+  var h='<div class="page-header"><h1>&#x1F500; 섞어풀기</h1><p>30~36&#xD68C; &#xBB38;&#xC81C;&#xB97C; &#xB79C;&#xB364;&#xC73C;&#xB85C; 40&#xBB38;&#xC81C; &#xCD9C;&#xC81C;! &#xB2E4;&#xC2DC;&#xD480;&#xAE30;&#xB9C8;&#xB2E4; &#xC0C8;&#xB85C;&#xC6B4; &#xBB38;&#xC81C;&#xAC00; &#xB098;&#xC640;&#xC694;.</p></div>';
   h+='<div style="max-width:560px;margin:0 auto;padding:0 4px">';
   h+='<div style="margin-bottom:8px;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px">1&#xAD50;&#xC2DC;</div>';
   s1.forEach(function(s){
