@@ -7,6 +7,7 @@ var _dbQuestions={};
 var state={examYear:36,subjectIdx:0,filter:'all',search:'',currentQ:0,answers:{},bookmarks:{},resolved:{},examMode:false,skip:{}};
 var _myBooks=[];var _mbActive=null;var _mbQ=0;var _mbAns={};var _mbBm={};var _mbChoiceCount=5;
 var _navMode='exam';var _mbExpStyle='friendly';var _mbManualQs=[];var _jijunSubj=0;var _jijunChecked={};var _jijunBlankMode=false;var _jijunViewMode='all';var _showSkipped=false;var _studyLog=[];var _eliminations={};
+var _mixSubjName='';var _mixQuestions=[];var _mixCurrentQ=0;var _mixAnswers={};
 function loadJijunChecked(){try{_jijunChecked=JSON.parse(localStorage.getItem('gh_jijun')||'{}');}catch(e){_jijunChecked={};}}
 function saveJijunChecked(){try{localStorage.setItem('gh_jijun',JSON.stringify(_jijunChecked));}catch(e){}}
 loadJijunChecked();
@@ -390,6 +391,7 @@ function renderSidebar(){
   h+='</div><div class="sidebar-section"><span class="sidebar-label">2교시</span>';
   curData().forEach(function(s,i){if(s.session!==2)return;h+='<div class="sidebar-item'+(state.subjectIdx===i?' active':'')+'" onclick="selSubj('+i+')">'+s.subject+'</div>';});
   h+='</div><hr class="sidebar-divider"><div class="sidebar-section">';
+  h+='<div class="sidebar-item" onclick="showMixPicker();closeMenu()">&#x1F500; &#xC12D;&#xC5B4;&#xD480;&#xAE30;</div>';
   h+='<div class="sidebar-item" onclick="showWrong();closeMenu()">📕 오답노트'+(w>0?'<span class="sidebar-badge">'+w+'</span>':'')+'</div>';
   h+='<div class="sidebar-item" onclick="showStats()">📊 내 통계</div>';
   h+='<div class="sidebar-item" onclick="showPdf();closeMenu()">📥 PDF 다운로드</div>';
@@ -486,6 +488,145 @@ function nextQ(){var qs=filteredQ();if(state.currentQ<qs.length-1){state.current
 function pick(key,c,ans){if(state.answers[key])return;state.answers[key]=c;saveS();saveRowToSupa(key);renderMain();renderSidebar();}
 function toggleBm(key){state.bookmarks[key]=!state.bookmarks[key];saveS();saveRowToSupa(key);renderMain();renderSidebar();}
 function resolve(key){state.resolved[key]=true;saveS();saveRowToSupa(key);var qs=filteredQ();if(state.currentQ>=qs.length)state.currentQ=Math.max(0,qs.length-1);renderMain();renderSidebar();}
+// ── 섞어풀기 ──────────────────────────────────────
+function getMixKey(m){return m.year+'_'+m.si+'_'+(m.q.q_num||m.q.number);}
+
+function shuffleArr(arr){
+  var a=arr.slice();
+  for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t;}
+  return a;
+}
+
+function getAllSubjectNames(){
+  var names=[];var seen={};
+  [36,35,34,33,32,31,30].forEach(function(yr){
+    var data=EXAM_DATA[yr];if(!data)return;
+    data.forEach(function(s){if(!seen[s.subject]){seen[s.subject]=true;names.push({name:s.subject,session:s.session});}});
+  });
+  return names;
+}
+
+function getQsForSubj(subjName){
+  var all=[];
+  [36,35,34,33,32,31,30].forEach(function(yr){
+    var data=EXAM_DATA[yr];if(!data)return;
+    data.forEach(function(s,si){
+      if(s.subject!==subjName)return;
+      var ydb=_dbQuestions[yr];var sdb=ydb&&ydb[s.subject];
+      s.questions.forEach(function(q){
+        var n=q.q_num||q.number;
+        var fq=sdb&&sdb[n]?sdb[n]:q;
+        if(!fq.is_hidden&&(n||n===0)){all.push({year:yr,si:si,q:fq});}
+      });
+    });
+  });
+  return all;
+}
+
+function showMixPicker(){
+  _navMode='mixpicker';
+  var subjs=getAllSubjectNames();
+  var s1=subjs.filter(function(s){return s.session===1;});
+  var s2=subjs.filter(function(s){return s.session===2;});
+  var h='<div class="page-header"><h1>&#x1F500; &#xC12D;&#xC5B4;&#xD480;&#xAE30;</h1><p>30~36&#xD68C; &#xBB38;&#xC81C;&#xB97C; &#xB79C;&#xB364;&#xC73C;&#xB85C; 40&#xBB38;&#xC81C; &#xCD9C;&#xC81C;! &#xB2E4;&#xC2DC;&#xD480;&#xAE30;&#xB9C8;&#xB2E4; &#xC0C8;&#xB85C;&#xC6B4; &#xBB38;&#xC81C;&#xAC00; &#xB098;&#xC640;&#xC694;.</p></div>';
+  h+='<div style="max-width:560px;margin:0 auto;padding:0 4px">';
+  h+='<div style="margin-bottom:8px;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px">1&#xAD50;&#xC2DC;</div>';
+  s1.forEach(function(s){
+    h+='<div onclick="startMix(\''+s.name+'\')" style="background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;padding:15px 18px;margin-bottom:10px;cursor:pointer;font-size:15px;font-weight:600;color:#1e293b;display:flex;justify-content:space-between;align-items:center;transition:border-color .15s" onmouseover="this.style.borderColor=\'#2563eb\'" onmouseout="this.style.borderColor=\'#e2e8f0\'">'+s.name+'<span style="font-size:12px;color:#94a3b8">&#x2192;</span></div>';
+  });
+  h+='<div style="margin:16px 0 8px;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px">2&#xAD50;&#xC2DC;</div>';
+  s2.forEach(function(s){
+    h+='<div onclick="startMix(\''+s.name+'\')" style="background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;padding:15px 18px;margin-bottom:10px;cursor:pointer;font-size:15px;font-weight:600;color:#1e293b;display:flex;justify-content:space-between;align-items:center" onmouseover="this.style.borderColor=\'#2563eb\'" onmouseout="this.style.borderColor=\'#e2e8f0\'">'+s.name+'<span style="font-size:12px;color:#94a3b8">&#x2192;</span></div>';
+  });
+  h+='</div>';
+  document.getElementById('main').innerHTML=h;
+}
+
+function startMix(subjName){
+  _mixSubjName=subjName;
+  var all=getQsForSubj(subjName);
+  _mixQuestions=shuffleArr(all).slice(0,40);
+  _mixCurrentQ=0;_mixAnswers={};
+  _navMode='mix';
+  showMix();closeMenu();
+}
+
+function restartMix(){
+  if(!confirm('섞어풀기를 다시 시작할까요?\n새로운 문제 40개가 출제됩니다!'))return;
+  startMix(_mixSubjName);
+}
+
+function pickMix(key,chosen){
+  if(_mixAnswers[key])return;
+  _mixAnswers[key]=chosen;
+  showMix();
+}
+
+function nextMixQ(){
+  if(_mixCurrentQ<_mixQuestions.length-1){_mixCurrentQ++;showMix();}
+  else alert('마지막 문제예요!');
+}
+
+function toggleBmMix(key){
+  if(state.bookmarks[key])delete state.bookmarks[key];else state.bookmarks[key]=true;
+  saveS();showMix();
+}
+
+function showMix(){
+  if(!_mixQuestions.length){showMixPicker();return;}
+  var m=_mixQuestions[_mixCurrentQ];
+  var q=m.q;var key=getMixKey(m);
+  var chosen=_mixAnswers[key]||0;var isAns=!!chosen;
+  var num=q.q_num||q.number;
+  var done=Object.keys(_mixAnswers).length;
+  var cor=0;
+  for(var k in _mixAnswers){
+    var mi=null;
+    for(var ii=0;ii<_mixQuestions.length;ii++){if(getMixKey(_mixQuestions[ii])===k){mi=_mixQuestions[ii];break;}}
+    if(mi&&_mixAnswers[k]===mi.q.answer)cor++;
+  }
+  var h='<div class="page-header"><h1>&#x1F500; '+_mixSubjName+'</h1><p>&#xC81C;'+m.year+'&#xD68C; &middot; &#xB79C;&#xB364; 40&#xBB38;&#xC81C; &middot; '+(_mixCurrentQ+1)+'/'+_mixQuestions.length+'</p></div>';
+  h+='<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:10px 16px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">';
+  h+='<div style="font-size:13px;color:#64748b">'+done+'/'+_mixQuestions.length+' 완료</div>';
+  h+='<div style="display:flex;gap:12px;font-size:13px"><span style="color:#2563eb;font-weight:700">&#x2705; '+cor+'</span><span style="color:#ef4444;font-weight:700">&#x274C; '+(done-cor)+'</span></div>';
+  h+='<button onclick="restartMix()" style="font-size:12px;padding:4px 12px;border-radius:8px;border:1.5px solid #fecaca;background:#fef2f2;color:#ef4444;cursor:pointer;font-weight:700">&#x1F504; &#xC0C8;&#xB85C; &#xC2DC;&#xC791;</button>';
+  h+='<button onclick="showMixPicker()" style="font-size:12px;padding:4px 12px;border-radius:8px;border:1.5px solid #e2e8f0;background:#f8fafc;color:#64748b;cursor:pointer">&#x2190; &#xACFC;&#xBAA9; &#xBCC0;&#xACBD;</button>';
+  h+='</div>';
+  h+='<div class="q-card">';
+  h+='<div class="q-header"><div style="display:flex;align-items:center;gap:8px"><span class="q-label">&#xC81C;'+m.year+'&#xD68C; '+num+'&#xBC88;</span></div>';
+  h+='<div style="display:flex;gap:6px"><button onclick="toggleBmMix(\''+key+'\')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:2px;color:'+(state.bookmarks[key]?'#f59e0b':'#cbd5e1')+'">'+(state.bookmarks[key]?'&#x2605;':'&#x2606;')+'</button></div></div>';
+  h+='<div class="q-body"><div class="q-text">'+highlight(q.question)+'</div>';
+  if(q.condition)h+='<div class="q-condition">'+esc(q.condition)+'</div>';
+  if(q.image_url)h+='<div style="margin-bottom:12px"><img src="'+q.image_url+'" style="max-width:100%;border-radius:8px;border:1px solid #e2e8f0" alt="문제 이미지"></div>';
+  h+='<div class="choices">';
+  q.choices.forEach(function(c,i){
+    var idx=i+1;
+    var isElim=!isAns&&!!_eliminations[key+'_'+idx];
+    var cls='choice'+(isAns?(idx===q.answer?' correct':idx===chosen?' wrong':''):'');
+    h+='<div style="position:relative;display:flex;align-items:stretch;gap:0">';
+    h+='<button class="'+cls+'" onclick="pickMix(\''+key+'\','+idx+')"'+(isAns?' disabled':'')+' style="flex:1;'+(isElim?'opacity:0.38;text-decoration:line-through;':'')+'">'+esc(c)+'</button>';
+    if(!isAns){h+='<button onclick="event.stopPropagation();toggleElim(\''+key+'\','+idx+')" style="min-width:38px;border:1.5px solid '+(isElim?'#ef4444':'#e2e8f0')+';border-left:none;border-radius:0 10px 10px 0;background:'+(isElim?'#fef2f2':'#f8fafc')+';cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;padding:0">'+(isElim?'<span style="color:#ef4444;font-weight:900">&#x2715;</span>':'<span style="color:#cbd5e1">&#x25a1;</span>')+'</button>';}
+    h+='</div>';
+  });
+  h+='</div>';
+  if(q.explanation)h+='<div class="explanation'+(isAns?' show':'')+'"><div class="explanation-title">&#x1F4A1; &#xD574;&#xC124;</div>'+esc(q.explanation)+'</div>';
+  h+='</div>';
+  var r1='';var r2='';
+  _mixQuestions.forEach(function(mx,idx){
+    var mk=getMixKey(mx);var ans=_mixAnswers[mk];var mn=mx.q.q_num||mx.q.number;
+    var dot;
+    if(idx===_mixCurrentQ)dot='<span class="qn-dot current" style="font-size:10px">'+mn+'</span>';
+    else if(ans&&ans===mx.q.answer)dot='<span class="qn-dot correct" onclick="_mixCurrentQ='+idx+';showMix()" style="cursor:pointer;font-size:10px">'+mn+'</span>';
+    else if(ans)dot='<span class="qn-dot wrong" onclick="_mixCurrentQ='+idx+';showMix()" style="cursor:pointer;font-size:10px">'+mn+'</span>';
+    else dot='<span class="qn-dot" onclick="_mixCurrentQ='+idx+';showMix()" style="cursor:pointer;font-size:10px">'+mn+'</span>';
+    if(idx<20)r1+=dot;else r2+=dot;
+  });
+  h+='<div class="q-footer"><div class="q-nums"><div class="q-nums-row">'+r1+'</div><div class="q-nums-row">'+r2+'</div></div>';
+  h+='<button class="btn-next" onclick="nextMixQ()">&#xB2E4;&#xC74C; &#x2192;</button></div></div>';
+  document.getElementById('main').innerHTML=h;
+}
+// ─────────────────────────────────────────────────
+
 function showWrong(){
   var d=curData();
   for(var i=0;i<d.length;i++){
