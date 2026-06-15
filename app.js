@@ -460,11 +460,11 @@ function renderMain(){
   h+='<div class="progress-card"><div class="progress-info"><h3>학습 진도</h3>';
   h+='<div class="pbar-wrap"><div class="pbar-fill" style="width:'+pct+'%"></div></div>';
   h+='<div class="progress-text">'+done+'/'+s.questions.length+'문제 완료 &middot; 정답률 '+(done?Math.round(cor/done*100):0)+'%</div></div>';
-  var todayLog=_studyLog.filter(function(l){return l.y===state.examYear&&l.subj===s.subject&&l.d===new Date().toISOString().slice(0,10);}).length;
+  var totalLog=_studyLog.filter(function(l){return l.y===state.examYear&&l.subj===s.subject;}).length;
   h+='<div class="progress-stats"><div class="stat"><div class="stat-num">'+cor+'</div><div class="stat-label">정답</div></div>';
   h+='<div class="stat"><div class="stat-num">'+(done-cor)+'</div><div class="stat-label">오답</div></div>';
   h+='<div class="stat"><div class="stat-num">'+(s.questions.length-done)+'</div><div class="stat-label">미풀이</div></div>';
-  h+='<button onclick="addStudyLog()" style="margin-left:auto;padding:4px 12px;background:'+(todayLog?'#dcfce7':'#f1f5f9')+';color:'+(todayLog?'#16a34a':'#475569')+';border:1.5px solid '+(todayLog?'#86efac':'#e2e8f0')+';border-radius:8px;font-size:12px;font-weight:700;cursor:pointer" title="학습일지에 오늘 기록 추가">'+(todayLog?'✅ 완료':'📅 완료')+'</button>';
+  h+='<button onclick="addStudyLog()" style="margin-left:auto;padding:4px 12px;background:'+(totalLog?'#dcfce7':'#f1f5f9')+';color:'+(totalLog?'#16a34a':'#475569')+';border:1.5px solid '+(totalLog?'#86efac':'#e2e8f0')+';border-radius:8px;font-size:12px;font-weight:700;cursor:pointer" title="학습일지에 기록 추가">'+(totalLog?'✅ '+totalLog+'회독':'📅 0회독')+'</button>';
   h+='</div></div>';
   if(!qs.length){
     var emptyMsg=state.search?'"'+state.search+'" 검색 결과가 없어요!':state.filter==='wrong'?'오답이 없어요!':'해당 문제가 없어요!';
