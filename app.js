@@ -100,12 +100,49 @@ function loadS(){
 }
 function loadStudyLog(){try{_studyLog=JSON.parse(localStorage.getItem('gh_log')||'[]');}catch(e){_studyLog=[];}}
 function saveStudyLog(){try{localStorage.setItem('gh_log',JSON.stringify(_studyLog));}catch(e){}}
+function loadStudyLogFromSupa(){
+  if(!_supa||!_user)return;
+  _supa.from('study_log').select('*').eq('user_id',_user.id).order('ts',{ascending:true}).then(function(result){
+    if(result.error||!result.data)return;
+    var supaLog=result.data.map(function(r){return {y:r.year,subj:r.subject,d:r.study_date,ts:r.ts};});
+    // 로컬 + Supabase 병합 (ts 기준 중복 제거)
+    var merged={};
+    _studyLog.forEach(function(l){merged[l.ts]=l;});
+    supaLog.forEach(function(l){merged[l.ts]=l;});
+    _studyLog=Object.keys(merged).map(function(k){return merged[k];}).sort(function(a,b){return a.ts-b.ts;});
+    // 로컬에만 있는 항목 → Supabase에 업로드
+    var supaTsSet={};result.data.forEach(function(r){supaTsSet[r.ts]=true;});
+    _studyLog.forEach(function(l){
+      if(!supaTsSet[l.ts]){
+        _supa.from('study_log').insert({user_id:_user.id,year:l.y,subject:l.subj,study_date:l.d,ts:l.ts}).then(function(){});
+      }
+    });
+    saveStudyLog();
+  });
+}
 function addStudyLog(){
   var s=subj();
-  _studyLog.push({y:state.examYear,subj:s.subject,d:new Date().toISOString().slice(0,10),ts:Date.now()});
+  var entry={y:state.examYear,subj:s.subject,d:new Date().toISOString().slice(0,10),ts:Date.now()};
+  _studyLog.push(entry);
   saveStudyLog();
+  if(_supa&&_user){
+    _supa.from('study_log').insert({user_id:_user.id,year:entry.y,subject:entry.subj,study_date:entry.d,ts:entry.ts}).then(function(){});
+  }
   alert('기록됐어요 ✅ 학습일지에서 확인해보세요!');
   renderMain();
+}
+function deleteStudyLogEntry(ts){
+  if(!confirm('이 기록을 삭제할까요?'))return;
+  _studyLog.splice(_studyLog.findIndex(function(x){return x.ts===ts;}),1);
+  saveStudyLog();
+  if(_supa&&_user){_supa.from('study_log').delete().eq('user_id',_user.id).eq('ts',ts).then(function(){});}
+  showStudyLog();
+}
+function clearAllStudyLog(){
+  if(!confirm('모든 학습일지를 삭제할까요?'))return;
+  _studyLog=[];saveStudyLog();
+  if(_supa&&_user){_supa.from('study_log').delete().eq('user_id',_user.id).then(function(){});}
+  showStudyLog();
 }
 function toggleSkip(key){
   if(state.skip[key]){delete state.skip[key];}else{state.skip[key]=true;}
@@ -263,6 +300,7 @@ function syncFromSupa(){
     else if(_navMode==='exam'){renderMain();}
   });
   loadMyBooks();
+  loadStudyLogFromSupa();
 }
 function toggleMenu(){
   var sd=document.getElementById('sidebar');
@@ -671,11 +709,39 @@ function showStudyLog(){
   h+='<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">';
   h+='<button onclick="showStats()" style="padding:6px 14px;background:#f1f5f9;border:none;border-radius:8px;font-weight:700;cursor:pointer">← 통계로</button>';
   h+='<h2 style="font-size:20px;font-weight:800">📅 학습일지</h2>';
-  h+='<button onclick="if(confirm(\'모든 학습일지를 삭제할까요?\')){{_studyLog=[];saveStudyLog();showStudyLog();}}" style="margin-left:auto;padding:5px 12px;background:#fef2f2;color:#ef4444;border:1.5px solid #fecaca;border-radius:8px;font-size:12px;cursor:pointer">전체 삭제</button>';
+  h+='<button onclick="clearAllStudyLog()" style="margin-left:auto;padding:5px 12px;background:#fef2f2;color:#ef4444;border:1.5px solid #fecaca;border-radius:8px;font-size:12px;cursor:pointer">전체 삭제</button>';
   h+='</div>';
   if(!_studyLog.length){
     h+='<div style="text-align:center;padding:60px 20px;color:#94a3b8"><div style="font-size:48px;margin-bottom:12px">📭</div><p>아직 기록이 없어요.<br>문제를 풀고 <b>📅 오늘 완료</b> 버튼을 눌러보세요!</p></div>';
     h+='</div>';document.getElementById('main').innerHTML=h;return;
+  }
+  // ── 복습 리마인드 (2주 이상 지난 과목) ──
+  var lastStudy={};
+  _studyLog.forEach(function(l){
+    var k=l.y+'_'+l.subj;
+    if(!lastStudy[k]||l.d>lastStudy[k].d)lastStudy[k]=l;
+  });
+  var today=new Date().toISOString().slice(0,10);
+  var remind=[];
+  Object.keys(lastStudy).forEach(function(k){
+    var l=lastStudy[k];
+    var diff=Math.floor((new Date(today)-new Date(l.d))/(1000*60*60*24));
+    if(diff>=14)remind.push({y:l.y,subj:l.subj,d:l.d,diff:diff});
+  });
+  remind.sort(function(a,b){return a.d.localeCompare(b.d);});
+  if(remind.length>0){
+    h+='<div style="background:#fffbeb;border:1.5px solid #fde68a;border-radius:14px;padding:16px 18px;margin-bottom:20px">';
+    h+='<div style="font-size:14px;font-weight:800;color:#92400e;margin-bottom:12px">⏰ 복습할 때가 됐어요!</div>';
+    remind.forEach(function(r){
+      var wks=Math.floor(r.diff/7);
+      var label=wks>=4?Math.floor(r.diff/30)+'달 전':wks+'주 전';
+      h+='<div onclick="selYear('+r.y+');var d=curData();for(var _i=0;_i<d.length;_i++){if(d[_i].subject===\''+r.subj+'\'){selSubj(_i);break;}}" style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:#fff;border:1px solid #fde68a;border-radius:10px;margin-bottom:6px;cursor:pointer">';
+      h+='<span style="font-size:15px">📚</span>';
+      h+='<span style="font-size:13px;font-weight:700;color:#1e293b">'+r.y+'회 '+r.subj+'</span>';
+      h+='<span style="margin-left:auto;font-size:11px;font-weight:700;color:#92400e;background:#fef3c7;padding:2px 8px;border-radius:10px">'+label+'</span>';
+      h+='</div>';
+    });
+    h+='</div>';
   }
   // 날짜별 그룹핑
   var byDate={};
@@ -695,7 +761,7 @@ function showStudyLog(){
       h+='<span style="font-size:16px">✅</span>';
       h+='<span style="font-size:13px;font-weight:700;color:#1e293b">'+l.y+'회 '+l.subj+'</span>';
       h+='<span style="margin-left:auto;font-size:11px;color:#fff;background:#2563eb;padding:2px 8px;border-radius:10px">'+roundNum+'회독</span>';
-      h+='<button onclick="if(confirm(\'이 기록을 삭제할까요?\')){{_studyLog.splice(_studyLog.findIndex(function(x){return x.ts==='+l.ts+';}),1);saveStudyLog();showStudyLog();}}" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:14px;padding:2px">✕</button>';
+      h+='<button onclick="deleteStudyLogEntry('+l.ts+')" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:14px;padding:2px">✕</button>';
       h+='</div>';
     });
     h+='</div>';
