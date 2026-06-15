@@ -464,7 +464,7 @@ function renderMain(){
   h+='<div class="progress-stats"><div class="stat"><div class="stat-num">'+cor+'</div><div class="stat-label">정답</div></div>';
   h+='<div class="stat"><div class="stat-num">'+(done-cor)+'</div><div class="stat-label">오답</div></div>';
   h+='<div class="stat"><div class="stat-num">'+(s.questions.length-done)+'</div><div class="stat-label">미풀이</div></div>';
-  h+='<button onclick="addStudyLog()" style="margin-left:auto;padding:4px 12px;background:'+(todayLog?'#dcfce7':'#f1f5f9')+';color:'+(todayLog?'#16a34a':'#475569')+';border:1.5px solid '+(todayLog?'#86efac':'#e2e8f0')+';border-radius:8px;font-size:12px;font-weight:700;cursor:pointer" title="학습일지에 오늘 기록 추가">'+(todayLog?'✅ 오늘 완료':'📅 오늘 완료')+'</button>';
+  h+='<button onclick="addStudyLog()" style="margin-left:auto;padding:4px 12px;background:'+(todayLog?'#dcfce7':'#f1f5f9')+';color:'+(todayLog?'#16a34a':'#475569')+';border:1.5px solid '+(todayLog?'#86efac':'#e2e8f0')+';border-radius:8px;font-size:12px;font-weight:700;cursor:pointer" title="학습일지에 오늘 기록 추가">'+(todayLog?'✅ 완료':'📅 완료')+'</button>';
   h+='</div></div>';
   if(!qs.length){
     var emptyMsg=state.search?'"'+state.search+'" 검색 결과가 없어요!':state.filter==='wrong'?'오답이 없어요!':'해당 문제가 없어요!';
@@ -712,7 +712,7 @@ function showStudyLog(){
   h+='<button onclick="clearAllStudyLog()" style="margin-left:auto;padding:5px 12px;background:#fef2f2;color:#ef4444;border:1.5px solid #fecaca;border-radius:8px;font-size:12px;cursor:pointer">전체 삭제</button>';
   h+='</div>';
   if(!_studyLog.length){
-    h+='<div style="text-align:center;padding:60px 20px;color:#94a3b8"><div style="font-size:48px;margin-bottom:12px">📭</div><p>아직 기록이 없어요.<br>문제를 풀고 <b>📅 오늘 완료</b> 버튼을 눌러보세요!</p></div>';
+    h+='<div style="text-align:center;padding:60px 20px;color:#94a3b8"><div style="font-size:48px;margin-bottom:12px">📭</div><p>아직 기록이 없어요.<br>문제를 풀고 <b>📅 완료</b> 버튼을 눌러보세요!</p></div>';
     h+='</div>';document.getElementById('main').innerHTML=h;return;
   }
   // ── 복습 리마인드 (2주 이상 지난 과목) ──
