@@ -507,7 +507,7 @@ function renderMain(){
   saveNavState();
 }
 
-function toggleElim(k,i){var ek=k+'_'+i;if(_eliminations[ek])delete _eliminations[ek];else _eliminations[ek]=true;renderMain();}
+function toggleElim(k,i){var ek=k+'_'+i;if(_eliminations[ek])delete _eliminations[ek];else _eliminations[ek]=true;if(_navMode==='mix'){showMix();}else{renderMain();}}
 function selYear(y){_mbActive=null;state.examYear=y;state.subjectIdx=0;state.currentQ=0;state.filter='all';state.search='';renderSidebar();renderMain();closeMenu();}
 function selSubj(i){_mbActive=null;state.subjectIdx=i;state.currentQ=0;state.filter='all';state.search='';renderSidebar();renderMain();closeMenu();}
 function setFilter(f){state.filter=f;state.currentQ=0;renderMain();}
