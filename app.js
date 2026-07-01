@@ -148,7 +148,7 @@ function toggleSkip(key){
   if(state.skip[key]){delete state.skip[key];}else{state.skip[key]=true;}
   saveS();renderMain();renderSidebar();
 }
-loadS();loadStudyLog();
+loadS();loadStudyLog();loadMix();
 function saveNavState(){
   try{localStorage.setItem('gh_nav',JSON.stringify({
     y:state.examYear,s:state.subjectIdx,q:state.currentQ,f:state.filter,
@@ -163,7 +163,7 @@ function loadNavState(){
     if(n.s!==undefined&&n.s>=0)state.subjectIdx=parseInt(n.s)||0;
     if(n.q!==undefined&&n.q>=0)state.currentQ=parseInt(n.q)||0;
     if(n.f&&['all','wrong','bm'].indexOf(n.f)>=0)state.filter=n.f;
-    if(n.nm&&['exam','studio','jijun'].indexOf(n.nm)>=0)_navMode=n.nm;
+    if(n.nm&&['exam','studio','jijun','mix'].indexOf(n.nm)>=0)_navMode=n.nm;
     if(n.js!==undefined&&n.js>=0)_jijunSubj=parseInt(n.js)||0;
   }catch(e){}
 }
@@ -429,7 +429,7 @@ function renderSidebar(){
   h+='</div><div class="sidebar-section"><span class="sidebar-label">2교시</span>';
   curData().forEach(function(s,i){if(s.session!==2)return;h+='<div class="sidebar-item'+(state.subjectIdx===i?' active':'')+'" onclick="selSubj('+i+')">'+s.subject+'</div>';});
   h+='</div><hr class="sidebar-divider"><div class="sidebar-section">';
-  h+='<div class="sidebar-item" onclick="showMixPicker();closeMenu()">&#x1F500; 섞어풀기</div>';
+  h+='<div class="sidebar-item" onclick="openMix();closeMenu()">&#x1F500; 섞어풀기</div>';
   h+='<div class="sidebar-item" onclick="showWrong();closeMenu()">📕 오답노트'+(w>0?'<span class="sidebar-badge">'+w+'</span>':'')+'</div>';
   h+='<div class="sidebar-item" onclick="showStats()">📊 내 통계</div>';
   h+='<div class="sidebar-item" onclick="showPdf();closeMenu()">📥 PDF 다운로드</div>';
@@ -554,11 +554,22 @@ function getQsForSubj(subjName){
       s.questions.forEach(function(q){
         var n=q.q_num||q.number;
         var fq=sdb&&sdb[n]?sdb[n]:q;
-        if(!fq.is_hidden&&(n||n===0)){all.push({year:yr,si:si,q:fq});}
+        if(!fq.is_hidden&&(n||n===0)&&!state.skip[yr+'_'+si+'_'+n]){all.push({year:yr,si:si,q:fq});}
       });
     });
   });
   return all;
+}
+
+function saveMix(){try{localStorage.setItem('gh_mix',JSON.stringify({sn:_mixSubjName,qs:_mixQuestions,cur:_mixCurrentQ,ans:_mixAnswers}));}catch(e){}}
+function loadMix(){
+  try{
+    var m=JSON.parse(localStorage.getItem('gh_mix')||'null');
+    if(m&&m.qs&&m.qs.length){_mixSubjName=m.sn||'';_mixQuestions=m.qs;_mixCurrentQ=m.cur||0;_mixAnswers=m.ans||{};}
+  }catch(e){}
+}
+function openMix(){
+  if(_mixQuestions.length){_navMode='mix';showMix();}else{showMixPicker();}
 }
 
 function showMixPicker(){
@@ -585,6 +596,7 @@ function startMix(subjName){
   var all=getQsForSubj(subjName);
   _mixQuestions=shuffleArr(all).slice(0,40);
   _mixCurrentQ=0;_mixAnswers={};
+  saveMix();
   _navMode='mix';
   showMix();closeMenu();
 }
@@ -597,11 +609,14 @@ function restartMix(){
 function pickMix(key,chosen){
   if(_mixAnswers[key])return;
   _mixAnswers[key]=chosen;
+  saveMix();
   showMix();
 }
 
+function goMixQ(idx){_mixCurrentQ=idx;saveMix();showMix();}
+
 function nextMixQ(){
-  if(_mixCurrentQ<_mixQuestions.length-1){_mixCurrentQ++;showMix();}
+  if(_mixCurrentQ<_mixQuestions.length-1){_mixCurrentQ++;saveMix();showMix();}
   else alert('마지막 문제예요!');
 }
 
@@ -654,14 +669,15 @@ function showMix(){
     var mk=getMixKey(mx);var ans=_mixAnswers[mk];var mn=mx.q.q_num||mx.q.number;
     var dot;
     if(idx===_mixCurrentQ)dot='<button class="qn current">'+(idx+1)+'</button>';
-    else if(ans&&ans===mx.q.answer)dot='<button class="qn answered" onclick="_mixCurrentQ='+idx+';showMix()">'+(idx+1)+'</button>';
-    else if(ans)dot='<button class="qn wrong-q" onclick="_mixCurrentQ='+idx+';showMix()">'+(idx+1)+'</button>';
-    else dot='<button class="qn" onclick="_mixCurrentQ='+idx+';showMix()">'+(idx+1)+'</button>';
+    else if(ans&&ans===mx.q.answer)dot='<button class="qn answered" onclick="goMixQ('+idx+')">'+(idx+1)+'</button>';
+    else if(ans)dot='<button class="qn wrong-q" onclick="goMixQ('+idx+')">'+(idx+1)+'</button>';
+    else dot='<button class="qn" onclick="goMixQ('+idx+')">'+(idx+1)+'</button>';
     if(idx<20)r1+=dot;else r2+=dot;
   });
   h+='<div class="q-footer"><div class="q-nums"><div class="q-nums-row">'+r1+'</div><div class="q-nums-row">'+r2+'</div></div>';
   h+='<button class="btn-next" onclick="nextMixQ()">&#xB2E4;&#xC74C; &#x2192;</button></div></div>';
   document.getElementById('main').innerHTML=h;
+  saveNavState();
 }
 // ─────────────────────────────────────────────────
 
@@ -1320,7 +1336,7 @@ try {
   renderNav();
   loadDbQuestions();
   renderSidebar();
-  renderMain();
+  if(_navMode==='mix'&&_mixQuestions.length){showMix();}else{renderMain();}
 } catch(e) {
   document.getElementById('main').innerHTML='<div style="text-align:center;padding:60px 20px"><div style="font-size:48px">&#x1F625;</div><p style="font-size:16px;font-weight:700;color:#1e293b;margin:16px 0 8px">&#xB370;&#xC774;&#xD130;&#xB97C; &#xBD88;&#xB7EC;&#xC624;&#xC9C0; &#xBABB;&#xD588;&#xC5B4;&#xC694;</p><p style="font-size:13px;color:#64748b;margin-bottom:20px">&#xD398;&#xC774;&#xC9C0;&#xB97C; &#xC0C8;&#xB85C;&#xACE0;&#xCE68; &#xD574;&#xC8FC;&#xC138;&#xC694;</p><button onclick="location.reload()" style="padding:10px 24px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">&#xC0C8;&#xB85C;&#xACE0;&#xCE68;</button></div>';
 }
