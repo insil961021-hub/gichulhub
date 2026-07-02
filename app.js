@@ -606,6 +606,13 @@ function restartMix(){
   startMix(_mixSubjName);
 }
 
+function retryMix(){
+  if(!confirm('지금 푼 40문제를 다시 풀까요? (문제는 그대로, 답안만 초기화돼요)'))return;
+  _mixCurrentQ=0;_mixAnswers={};
+  saveMix();
+  showMix();
+}
+
 function pickMix(key,chosen){
   if(_mixAnswers[key])return;
   _mixAnswers[key]=chosen;
@@ -642,6 +649,7 @@ function showMix(){
   h+='<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:10px 16px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">';
   h+='<div style="font-size:13px;color:#64748b">'+done+'/'+_mixQuestions.length+' 완료</div>';
   h+='<div style="display:flex;gap:12px;font-size:13px"><span style="color:#2563eb;font-weight:700">&#x2705; '+cor+'</span><span style="color:#ef4444;font-weight:700">&#x274C; '+(done-cor)+'</span></div>';
+  h+='<button onclick="retryMix()" style="font-size:12px;padding:4px 12px;border-radius:8px;border:1.5px solid #bfdbfe;background:#eff6ff;color:#2563eb;cursor:pointer;font-weight:700">&#x1F501; &#xB2E4;&#xC2DC;&#xD480;&#xAE30;</button>';
   h+='<button onclick="restartMix()" style="font-size:12px;padding:4px 12px;border-radius:8px;border:1.5px solid #fecaca;background:#fef2f2;color:#ef4444;cursor:pointer;font-weight:700">&#x1F504; &#xC0C8;&#xB85C; &#xC2DC;&#xC791;</button>';
   h+='<button onclick="showMixPicker()" style="font-size:12px;padding:4px 12px;border-radius:8px;border:1.5px solid #e2e8f0;background:#f8fafc;color:#64748b;cursor:pointer">&#x2190; &#xACFC;&#xBAA9; &#xBCC0;&#xACBD;</button>';
   h+='</div>';
