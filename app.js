@@ -495,7 +495,7 @@ function renderMain(){
     h+='<div style="position:relative;display:flex;align-items:stretch;gap:0">';
     h+='<button class="'+cls+'" onclick="pick(\''+key+'\','+idx+','+q.answer+')"'+(isAns?' disabled':'')+' style="flex:1;'+(isElim?'opacity:0.38;text-decoration:line-through;':'')+'">'+esc(c)+'</button>';
     if(!isAns){
-      h+='<button onclick="event.stopPropagation();toggleElim(\''+key+'\','+idx+')" style="min-width:38px;border:1.5px solid '+(isElim?'#ef4444':'#e2e8f0')+';border-left:none;border-radius:0 10px 10px 0;background:'+(isElim?'#fef2f2':'#f8fafc')+';cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;padding:0">'+(isElim?'<span style="color:#ef4444;font-weight:900">&#x2715;</span>':'<span style="color:#cbd5e1">&#x25a1;</span>')+'</button>';
+      h+='<button onclick="event.stopPropagation();toggleElim(\''+key+'\','+idx+',\'exam\')" style="min-width:38px;border:1.5px solid '+(isElim?'#ef4444':'#e2e8f0')+';border-left:none;border-radius:0 10px 10px 0;background:'+(isElim?'#fef2f2':'#f8fafc')+';cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;padding:0">'+(isElim?'<span style="color:#ef4444;font-weight:900">&#x2715;</span>':'<span style="color:#cbd5e1">&#x25a1;</span>')+'</button>';
     }
     h+='</div>';
   });
@@ -507,9 +507,9 @@ function renderMain(){
   saveNavState();
 }
 
-function toggleElim(k,i){var ek=k+'_'+i;if(_eliminations[ek])delete _eliminations[ek];else _eliminations[ek]=true;if(_navMode==='mix'){showMix();}else{renderMain();}}
-function selYear(y){_mbActive=null;state.examYear=y;state.subjectIdx=0;state.currentQ=0;state.filter='all';state.search='';renderSidebar();renderMain();closeMenu();}
-function selSubj(i){_mbActive=null;state.subjectIdx=i;state.currentQ=0;state.filter='all';state.search='';renderSidebar();renderMain();closeMenu();}
+function toggleElim(k,i,mode){var ek=k+'_'+i;if(_eliminations[ek])delete _eliminations[ek];else _eliminations[ek]=true;if(mode==='mix'){showMix();}else{renderMain();}}
+function selYear(y){_mbActive=null;_navMode='exam';state.examYear=y;state.subjectIdx=0;state.currentQ=0;state.filter='all';state.search='';renderSidebar();renderMain();closeMenu();}
+function selSubj(i){_mbActive=null;_navMode='exam';state.subjectIdx=i;state.currentQ=0;state.filter='all';state.search='';renderSidebar();renderMain();closeMenu();}
 function setFilter(f){state.filter=f;state.currentQ=0;renderMain();}
 var _sTimer=null;
 function setSearch(v){
@@ -666,7 +666,7 @@ function showMix(){
     var cls='choice'+(isAns?(idx===q.answer?' correct':idx===chosen?' wrong':''):'');
     h+='<div style="position:relative;display:flex;align-items:stretch;gap:0">';
     h+='<button class="'+cls+'" onclick="pickMix(\''+key+'\','+idx+')"'+(isAns?' disabled':'')+' style="flex:1;'+(isElim?'opacity:0.38;text-decoration:line-through;':'')+'">'+esc(c)+'</button>';
-    if(!isAns){h+='<button onclick="event.stopPropagation();toggleElim(\''+key+'\','+idx+')" style="min-width:38px;border:1.5px solid '+(isElim?'#ef4444':'#e2e8f0')+';border-left:none;border-radius:0 10px 10px 0;background:'+(isElim?'#fef2f2':'#f8fafc')+';cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;padding:0">'+(isElim?'<span style="color:#ef4444;font-weight:900">&#x2715;</span>':'<span style="color:#cbd5e1">&#x25a1;</span>')+'</button>';}
+    if(!isAns){h+='<button onclick="event.stopPropagation();toggleElim(\''+key+'\','+idx+',\'mix\')" style="min-width:38px;border:1.5px solid '+(isElim?'#ef4444':'#e2e8f0')+';border-left:none;border-radius:0 10px 10px 0;background:'+(isElim?'#fef2f2':'#f8fafc')+';cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;padding:0">'+(isElim?'<span style="color:#ef4444;font-weight:900">&#x2715;</span>':'<span style="color:#cbd5e1">&#x25a1;</span>')+'</button>';}
     h+='</div>';
   });
   h+='</div>';
@@ -690,6 +690,7 @@ function showMix(){
 // ─────────────────────────────────────────────────
 
 function showWrong(){
+  _navMode='exam';
   var d=curData();
   for(var i=0;i<d.length;i++){
     if(d[i].questions.some(function(q){var k=state.examYear+'_'+i+'_'+q.number;return state.answers[k]&&state.answers[k]!==q.answer&&!state.resolved[k];})){
