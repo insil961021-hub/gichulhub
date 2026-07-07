@@ -415,7 +415,7 @@ function showJijun(){
   if(_jijunBlankMode){h+='<div style="width:100%;font-size:11px;color:#94a3b8;padding:2px 4px">💡 숫자·법령명은 자동 빈칸 &nbsp;|&nbsp; 단어 클릭 → 직접 빈칸 추가/해제</div>';}
   h+='</div>';
   h+='<div style="font-size:11px;color:#94a3b8;padding:2px 4px 10px">💡 문장을 드래그해서 선택하면 메모장에 저장할 수 있어요</div>';
-  h+='<div id="jijunBody" onmouseup="checkJijunSelection()">';
+  h+='<div id="jijunBody" onmouseup="checkTextSelection()">';
   subj.sections.forEach(function(sec,sidx){
     var visibleItems=sec.items.filter(function(item){
       if(_jijunViewMode==='checked'){var k=_jijunSubj+'_'+sidx+'_'+item.num;return _jijunChecked[k];}
@@ -441,20 +441,30 @@ function showJijun(){
   if(_jijunViewMode==='checked'&&checkedCount===0){
     h+='<div class="empty"><div style="font-size:48px">☆</div><p>★ 버튼을 눌러 지문을 모아보세요!</p></div>';
   }
-  h+='<div id="jijunSelBar" style="display:none;position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#1e293b;color:#fff;padding:10px 16px;border-radius:30px;box-shadow:0 6px 20px rgba(0,0,0,.25);font-size:13px;align-items:center;gap:10px;z-index:999;max-width:92vw">';
-  h+='<span id="jijunSelPreview" style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#cbd5e1;margin-right:10px"></span>';
-  h+='<button onclick="saveJijunHighlight()" style="background:#2563eb;color:#fff;border:none;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer">📝 메모하기</button>';
-  h+='</div>';
+  h+=selBarHtml();
   document.getElementById('main').innerHTML=h;
   saveNavState();
 }
-function checkJijunSelection(){
-  var bar=document.getElementById('jijunSelBar');
+function selBarHtml(){
+  var h='<div id="selBar" style="display:none;position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#1e293b;color:#fff;padding:10px 16px;border-radius:30px;box-shadow:0 6px 20px rgba(0,0,0,.25);font-size:13px;align-items:center;gap:10px;z-index:999;max-width:92vw">';
+  h+='<span id="selPreview" style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#cbd5e1;margin-right:10px"></span>';
+  h+='<button onclick="saveTextHighlight()" style="background:#2563eb;color:#fff;border:none;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer">📝 메모하기</button>';
+  h+='</div>';
+  return h;
+}
+function currentMemoSubject(){
+  if(_navMode==='mix')return _mixSubjName;
+  if(_navMode==='jijun'){var so=(typeof _jijunData!=='undefined'&&_jijunData)?_jijunData[_jijunSubj]:null;return so?so.subject:'';}
+  if(_navMode==='studio')return _mbActive?_mbActive.title:'';
+  var s=subj();return s?s.subject:'';
+}
+function checkTextSelection(){
+  var bar=document.getElementById('selBar');
   if(!bar)return;
   var sel=window.getSelection?window.getSelection():null;
   var txt=sel?sel.toString().replace(/^\s+|\s+$/g,''):'';
   if(txt.length>1){
-    var prev=document.getElementById('jijunSelPreview');
+    var prev=document.getElementById('selPreview');
     if(prev)prev.textContent=txt.length>40?txt.slice(0,40)+'…':txt;
     bar.style.display='flex';
     bar.setAttribute('data-sel',txt);
@@ -462,13 +472,12 @@ function checkJijunSelection(){
     bar.style.display='none';
   }
 }
-function saveJijunHighlight(){
-  var bar=document.getElementById('jijunSelBar');
+function saveTextHighlight(){
+  var bar=document.getElementById('selBar');
   var txt=bar?bar.getAttribute('data-sel'):'';
   if(!txt)return;
   var note=prompt('메모를 남겨보세요 (선택, 비워도 저장돼요)','')||'';
-  var subjObj=_jijunData&&_jijunData[_jijunSubj];
-  var entry={ts:Date.now(),subj:subjObj?subjObj.subject:'',excerpt:txt,note:note};
+  var entry={ts:Date.now(),subj:currentMemoSubject(),excerpt:txt,note:note};
   _memos.unshift(entry);
   saveMemos();
   if(_supa&&_user){
@@ -569,7 +578,7 @@ function renderMain(){
     var btn='<button class="'+cls+'" onclick="goTo('+i+')">'+qq.number+'</button>';
     if(i<half)r1+=btn;else r2+=btn;
   });
-  h+='<div class="q-card"><div class="q-header"><span class="q-num">Q'+q.number+'</span>'+(q.is_amended?'<span style="display:inline-block;background:#ff6b35;color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;margin-left:6px;vertical-align:middle">개정</span>':'')+'<div class="q-actions">';
+  h+='<div class="q-card" onmouseup="checkTextSelection()"><div class="q-header"><span class="q-num">Q'+q.number+'</span>'+(q.is_amended?'<span style="display:inline-block;background:#ff6b35;color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;margin-left:6px;vertical-align:middle">개정</span>':'')+'<div class="q-actions">';
   if(state.filter==='wrong'&&isAns)h+='<button class="btn-resolve" onclick="resolve(\''+key+'\')">✓ 이해했어요</button>';
   h+='<button class="btn-icon'+(isBm?' bookmarked':'')+'" onclick="toggleBm(\''+key+'\')">'+(isBm?'★':'☆')+'</button>';
   h+='<button onclick="toggleSkip(\''+key+'\')" title="'+(isSkip?'건너뛰기 해제':'이 문제 건너뛰기')+'" style="border:none;background:none;cursor:pointer;font-size:13px;font-weight:700;padding:4px 6px;border-radius:6px;color:'+(isSkip?'#ef4444':'#cbd5e1')+'">'+(isSkip?'✕ON':'✕')+'</button>';
@@ -592,6 +601,7 @@ function renderMain(){
   if(q.explanation)h+='<div class="explanation'+(isAns?' show':'')+'"><div class="explanation-title">💡 해설</div>'+esc(q.explanation)+'</div>';
   h+='</div><div class="q-footer"><div class="q-nums"><div class="q-nums-row">'+r1+'</div><div class="q-nums-row">'+r2+'</div></div>';
   h+='<button class="btn-next" onclick="nextQ()">다음 →</button></div></div>';
+  h+=selBarHtml();
   document.getElementById('main').innerHTML=h;
   saveNavState();
 }
@@ -742,7 +752,7 @@ function showMix(){
   h+='<button onclick="restartMix()" style="font-size:12px;padding:4px 12px;border-radius:8px;border:1.5px solid #fecaca;background:#fef2f2;color:#ef4444;cursor:pointer;font-weight:700">&#x1F504; &#xC0C8;&#xB85C; &#xC2DC;&#xC791;</button>';
   h+='<button onclick="showMixPicker()" style="font-size:12px;padding:4px 12px;border-radius:8px;border:1.5px solid #e2e8f0;background:#f8fafc;color:#64748b;cursor:pointer">&#x2190; &#xACFC;&#xBAA9; &#xBCC0;&#xACBD;</button>';
   h+='</div>';
-  h+='<div class="q-card">';
+  h+='<div class="q-card" onmouseup="checkTextSelection()">';
   h+='<div class="q-header"><div style="display:flex;align-items:center;gap:8px"><span class="q-label">&#xC81C;'+m.year+'&#xD68C; '+num+'&#xBC88;</span></div>';
   h+='<div style="display:flex;gap:6px"><button onclick="toggleBmMix(\''+key+'\')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:2px;color:'+(state.bookmarks[key]?'#f59e0b':'#cbd5e1')+'">'+(state.bookmarks[key]?'&#x2605;':'&#x2606;')+'</button></div></div>';
   h+='<div class="q-body"><div class="q-text">'+highlight(q.question)+'</div>';
@@ -773,6 +783,7 @@ function showMix(){
   });
   h+='<div class="q-footer"><div class="q-nums"><div class="q-nums-row">'+r1+'</div><div class="q-nums-row">'+r2+'</div></div>';
   h+='<button class="btn-next" onclick="nextMixQ()">&#xB2E4;&#xC74C; &#x2192;</button></div></div>';
+  h+=selBarHtml();
   document.getElementById('main').innerHTML=h;
   saveNavState();
 }
@@ -1336,7 +1347,7 @@ function renderMyBook(){
   h+='<button onclick="showMyBookList()" style="padding:5px 12px;background:#f1f5f9;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">← 목록</button>';
   h+='<h1 style="font-size:18px;font-weight:800;color:#1e293b">'+esc(_mbActive.title)+'</h1></div>';
   h+='<p style="margin-top:4px;font-size:13px;color:#64748b">'+qs.length+'문제 · '+_mbActive.choice_count+'지선다</p></div>';
-  h+='<div class="q-card"><div class="q-header"><span class="q-num">Q'+q.number+'</span><div class="q-actions">';
+  h+='<div class="q-card" onmouseup="checkTextSelection()"><div class="q-header"><span class="q-num">Q'+q.number+'</span><div class="q-actions">';
   h+='<button class="btn-icon'+(isBm?' bookmarked':'')+'" onclick="toggleBmMb('+key+')">'+(isBm?'★':'☆')+'</button>';
   h+='</div></div><div class="q-body"><div class="q-text">'+highlight(q.question)+'</div>';
   if(q.condition)h+='<div class="q-condition">'+esc(q.condition)+'</div>';
@@ -1350,6 +1361,7 @@ function renderMyBook(){
   h+='<div class="explanation'+(isAns?' show':'')+'"><div class="explanation-title">💡 해설</div>'+esc(q.explanation)+'</div>';
   h+='</div><div class="q-footer"><div class="q-nums"><div class="q-nums-row">'+r1+'</div><div class="q-nums-row">'+r2+'</div></div>';
   h+='<button class="btn-next" onclick="nextMb()">다음 →</button></div></div>';
+  h+=selBarHtml();
   document.getElementById('main').innerHTML=h;
 }
 function wrongCountMb(){
