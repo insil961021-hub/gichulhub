@@ -6,7 +6,7 @@ var _user=null;
 var _dbQuestions={};
 var state={examYear:36,subjectIdx:0,filter:'all',search:'',currentQ:0,answers:{},bookmarks:{},resolved:{},examMode:false,skip:{}};
 var _myBooks=[];var _mbActive=null;var _mbQ=0;var _mbAns={};var _mbBm={};var _mbChoiceCount=5;
-var _navMode='exam';var _mbExpStyle='friendly';var _mbManualQs=[];var _jijunSubj=0;var _jijunChecked={};var _jijunBlankMode=false;var _jijunViewMode='all';var _showSkipped=false;var _studyLog=[];var _eliminations={};
+var _navMode='exam';var _mbExpStyle='friendly';var _mbManualQs=[];var _jijunSubj=0;var _jijunChecked={};var _jijunBlankMode=false;var _jijunViewMode='all';var _showSkipped=false;var _studyLog=[];var _eliminations={};var _memos=[];
 var _mixSubjName='';var _mixQuestions=[];var _mixCurrentQ=0;var _mixAnswers={};
 function loadJijunChecked(){try{_jijunChecked=JSON.parse(localStorage.getItem('gh_jijun')||'{}');}catch(e){_jijunChecked={};}}
 function saveJijunChecked(){try{localStorage.setItem('gh_jijun',JSON.stringify(_jijunChecked));}catch(e){}}
@@ -144,11 +144,60 @@ function clearAllStudyLog(){
   if(_supa&&_user){_supa.from('study_log').delete().eq('user_id',_user.id).then(function(){});}
   showStudyLog();
 }
+function loadMemos(){try{_memos=JSON.parse(localStorage.getItem('gh_memo')||'[]');}catch(e){_memos=[];}}
+function saveMemos(){try{localStorage.setItem('gh_memo',JSON.stringify(_memos));}catch(e){}}
+function loadMemosFromSupa(){
+  if(!_supa||!_user)return;
+  _supa.from('memos').select('*').eq('user_id',_user.id).order('ts',{ascending:false}).then(function(result){
+    if(result.error||!result.data)return;
+    var supaMemos=result.data.map(function(r){return {ts:r.ts,subj:r.subject,excerpt:r.excerpt,note:r.note||''};});
+    var merged={};
+    _memos.forEach(function(m){merged[m.ts]=m;});
+    supaMemos.forEach(function(m){merged[m.ts]=m;});
+    _memos=Object.keys(merged).map(function(k){return merged[k];}).sort(function(a,b){return b.ts-a.ts;});
+    var supaTsSet={};result.data.forEach(function(r){supaTsSet[r.ts]=true;});
+    _memos.forEach(function(m){
+      if(!supaTsSet[m.ts]){
+        _supa.from('memos').insert({user_id:_user.id,subject:m.subj,excerpt:m.excerpt,note:m.note||'',ts:m.ts}).then(function(){});
+      }
+    });
+    saveMemos();
+    if(_navMode==='memo')showMemoList();
+  });
+}
+function showMemoList(){
+  _navMode='memo';
+  renderSidebar();
+  var h='<div class="page-header"><h1>&#x1F4DD; 메모장</h1><p>기출지문에서 저장한 하이라이트 &middot; 총 '+_memos.length+'개</p></div>';
+  if(!_memos.length){
+    h+='<div class="empty"><div style="font-size:48px">📝</div><p>기출지문에서 문장을 드래그해서 선택하면<br>메모로 저장할 수 있어요!</p></div>';
+  }else{
+    _memos.forEach(function(m){
+      h+='<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px 18px;margin-bottom:12px">';
+      h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px">';
+      h+='<span style="font-size:11px;font-weight:700;color:#2563eb;background:#eff6ff;padding:3px 10px;border-radius:20px">'+esc(m.subj||'')+'</span>';
+      h+='<button onclick="deleteMemo('+m.ts+')" style="background:none;border:none;color:#cbd5e1;cursor:pointer;font-size:13px">✕</button>';
+      h+='</div>';
+      h+='<div style="font-size:14px;line-height:1.6;color:#1e293b;background:#fffbeb;border-left:3px solid #f59e0b;padding:8px 12px;margin-bottom:'+(m.note?'8px':'0')+'">'+esc(m.excerpt)+'</div>';
+      if(m.note)h+='<div style="font-size:13px;color:#475569;padding:2px 2px">&#x1F4AC; '+esc(m.note)+'</div>';
+      h+='<div style="font-size:11px;color:#94a3b8;margin-top:8px">'+new Date(m.ts).toLocaleDateString('ko-KR')+'</div>';
+      h+='</div>';
+    });
+  }
+  document.getElementById('main').innerHTML=h;
+}
+function deleteMemo(ts){
+  if(!confirm('이 메모를 삭제할까요?'))return;
+  _memos.splice(_memos.findIndex(function(x){return x.ts===ts;}),1);
+  saveMemos();
+  if(_supa&&_user){_supa.from('memos').delete().eq('user_id',_user.id).eq('ts',ts).then(function(){});}
+  showMemoList();
+}
 function toggleSkip(key){
   if(state.skip[key]){delete state.skip[key];}else{state.skip[key]=true;}
   saveS();renderMain();renderSidebar();
 }
-loadS();loadStudyLog();loadMix();
+loadS();loadStudyLog();loadMix();loadMemos();
 function saveNavState(){
   try{localStorage.setItem('gh_nav',JSON.stringify({
     y:state.examYear,s:state.subjectIdx,q:state.currentQ,f:state.filter,
@@ -301,6 +350,7 @@ function syncFromSupa(){
   });
   loadMyBooks();
   loadStudyLogFromSupa();
+  loadMemosFromSupa();
 }
 function toggleMenu(){
   var sd=document.getElementById('sidebar');
@@ -364,6 +414,8 @@ function showJijun(){
   if(_jijunBlankMode){h+='<button onclick="resetBlanks()" style="padding:5px 12px;border-radius:20px;font-size:12px;cursor:pointer;background:#e0f2fe;color:#0369a1;border:1.5px solid #7dd3fc">↺ 빈칸 초기화</button>';}
   if(_jijunBlankMode){h+='<div style="width:100%;font-size:11px;color:#94a3b8;padding:2px 4px">💡 숫자·법령명은 자동 빈칸 &nbsp;|&nbsp; 단어 클릭 → 직접 빈칸 추가/해제</div>';}
   h+='</div>';
+  h+='<div style="font-size:11px;color:#94a3b8;padding:2px 4px 10px">💡 문장을 드래그해서 선택하면 메모장에 저장할 수 있어요</div>';
+  h+='<div id="jijunBody" onmouseup="checkJijunSelection()">';
   subj.sections.forEach(function(sec,sidx){
     var visibleItems=sec.items.filter(function(item){
       if(_jijunViewMode==='checked'){var k=_jijunSubj+'_'+sidx+'_'+item.num;return _jijunChecked[k];}
@@ -385,16 +437,52 @@ function showJijun(){
     });
     h+='</div></div>';
   });
+  h+='</div>';
   if(_jijunViewMode==='checked'&&checkedCount===0){
     h+='<div class="empty"><div style="font-size:48px">☆</div><p>★ 버튼을 눌러 지문을 모아보세요!</p></div>';
   }
+  h+='<div id="jijunSelBar" style="display:none;position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#1e293b;color:#fff;padding:10px 16px;border-radius:30px;box-shadow:0 6px 20px rgba(0,0,0,.25);font-size:13px;align-items:center;gap:10px;z-index:999;max-width:92vw">';
+  h+='<span id="jijunSelPreview" style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#cbd5e1;margin-right:10px"></span>';
+  h+='<button onclick="saveJijunHighlight()" style="background:#2563eb;color:#fff;border:none;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer">📝 메모하기</button>';
+  h+='</div>';
   document.getElementById('main').innerHTML=h;
   saveNavState();
+}
+function checkJijunSelection(){
+  var bar=document.getElementById('jijunSelBar');
+  if(!bar)return;
+  var sel=window.getSelection?window.getSelection():null;
+  var txt=sel?sel.toString().replace(/^\s+|\s+$/g,''):'';
+  if(txt.length>1){
+    var prev=document.getElementById('jijunSelPreview');
+    if(prev)prev.textContent=txt.length>40?txt.slice(0,40)+'…':txt;
+    bar.style.display='flex';
+    bar.setAttribute('data-sel',txt);
+  }else{
+    bar.style.display='none';
+  }
+}
+function saveJijunHighlight(){
+  var bar=document.getElementById('jijunSelBar');
+  var txt=bar?bar.getAttribute('data-sel'):'';
+  if(!txt)return;
+  var note=prompt('메모를 남겨보세요 (선택, 비워도 저장돼요)','')||'';
+  var subjObj=_jijunData&&_jijunData[_jijunSubj];
+  var entry={ts:Date.now(),subj:subjObj?subjObj.subject:'',excerpt:txt,note:note};
+  _memos.unshift(entry);
+  saveMemos();
+  if(_supa&&_user){
+    _supa.from('memos').insert({user_id:_user.id,subject:entry.subj,excerpt:entry.excerpt,note:entry.note,ts:entry.ts}).then(function(){});
+  }
+  bar.style.display='none';
+  if(window.getSelection)window.getSelection().removeAllRanges();
+  alert('메모장에 저장했어요 📝');
 }
 function renderSidebar(){
   if(_navMode==='jijun'){
     var h='<div class="sidebar-close-btn" onclick="closeMenu()"><span style="font-size:20px">✕</span> 닫기</div>';
-    h+='<div class="sidebar-section"><div class="sidebar-item" onclick="navTabExam()" style="color:#64748b;font-size:12px">← 기출문제로</div></div>';
+    h+='<div class="sidebar-section"><div class="sidebar-item" onclick="navTabExam()" style="color:#64748b;font-size:12px">← 기출문제로</div>';
+    h+='<div class="sidebar-item" onclick="showMemoList();closeMenu()">&#x1F4DD; 메모장'+(_memos.length?'<span class="sidebar-badge" style="background:#f59e0b">'+_memos.length+'</span>':'')+'</div></div>';
     h+='<div class="sidebar-section"><span class="sidebar-label">기출지문</span>';
     if(typeof _jijunData!=='undefined'&&_jijunData){
       _jijunData.forEach(function(subj,i){
@@ -434,6 +522,7 @@ function renderSidebar(){
   h+='<div class="sidebar-item" onclick="showStats()">📊 내 통계</div>';
   h+='<div class="sidebar-item" onclick="showPdf();closeMenu()">📥 PDF 다운로드</div>';
   h+='<div class="sidebar-item" onclick="navTabJijun()">📋 기출지문</div>';
+  h+='<div class="sidebar-item" onclick="showMemoList();closeMenu()">&#x1F4DD; 메모장'+(_memos.length?'<span class="sidebar-badge" style="background:#f59e0b">'+_memos.length+'</span>':'')+'</div>';
   h+='</div>';
   h+='</div>';
   document.getElementById('sidebar').innerHTML=h;
