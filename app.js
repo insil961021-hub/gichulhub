@@ -591,7 +591,7 @@ function renderMain(){
     var isElim=!isAns&&!!_eliminations[key+'_'+idx];
     var cls='choice'+(isAns?(state.examMode?' selected':(idx===q.answer?' correct':idx===chosen?' wrong':'')):'')+(isElim?' elim':'');
     h+='<div style="position:relative;display:flex;align-items:stretch;gap:0">';
-    h+='<button class="'+cls+'" onclick="pick(\''+key+'\','+idx+','+q.answer+')"'+(isAns?' disabled':'')+' style="flex:1;'+(isElim?'opacity:0.38;text-decoration:line-through;':'')+'">'+esc(c)+'</button>';
+    h+='<button class="'+cls+'" onclick="pick(\''+key+'\','+idx+','+q.answer+')" style="flex:1;'+(isElim?'opacity:0.38;text-decoration:line-through;':'')+'">'+esc(c)+'</button>';
     if(!isAns){
       h+='<button onclick="event.stopPropagation();toggleElim(\''+key+'\','+idx+',\'exam\')" style="min-width:38px;border:1.5px solid '+(isElim?'#ef4444':'#e2e8f0')+';border-left:none;border-radius:0 10px 10px 0;background:'+(isElim?'#fef2f2':'#f8fafc')+';cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;padding:0">'+(isElim?'<span style="color:#ef4444;font-weight:900">&#x2715;</span>':'<span style="color:#cbd5e1">&#x25a1;</span>')+'</button>';
     }
@@ -764,7 +764,7 @@ function showMix(){
     var isElim=!isAns&&!!_eliminations[key+'_'+idx];
     var cls='choice'+(isAns?(idx===q.answer?' correct':idx===chosen?' wrong':''):'');
     h+='<div style="position:relative;display:flex;align-items:stretch;gap:0">';
-    h+='<button class="'+cls+'" onclick="pickMix(\''+key+'\','+idx+')"'+(isAns?' disabled':'')+' style="flex:1;'+(isElim?'opacity:0.38;text-decoration:line-through;':'')+'">'+esc(c)+'</button>';
+    h+='<button class="'+cls+'" onclick="pickMix(\''+key+'\','+idx+')" style="flex:1;'+(isElim?'opacity:0.38;text-decoration:line-through;':'')+'">'+esc(c)+'</button>';
     if(!isAns){h+='<button onclick="event.stopPropagation();toggleElim(\''+key+'\','+idx+',\'mix\')" style="min-width:38px;border:1.5px solid '+(isElim?'#ef4444':'#e2e8f0')+';border-left:none;border-radius:0 10px 10px 0;background:'+(isElim?'#fef2f2':'#f8fafc')+';cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;padding:0">'+(isElim?'<span style="color:#ef4444;font-weight:900">&#x2715;</span>':'<span style="color:#cbd5e1">&#x25a1;</span>')+'</button>';}
     h+='</div>';
   });
@@ -1355,7 +1355,7 @@ function renderMyBook(){
   q.choices.forEach(function(c,i){
     var idx=i+1;
     var cls='choice'+(isAns?(idx===q.answer?' correct':idx===chosen?' wrong':''):'');
-    h+='<button class="'+cls+'" onclick="pickMb('+key+','+idx+','+q.answer+')"'+(isAns?' disabled':'')+'>'+esc(c)+'</button>';
+    h+='<button class="'+cls+'" onclick="pickMb('+key+','+idx+','+q.answer+')">'+esc(c)+'</button>';
   });
   h+='</div>';
   h+='<div class="explanation'+(isAns?' show':'')+'"><div class="explanation-title">💡 해설</div>'+esc(q.explanation)+'</div>';

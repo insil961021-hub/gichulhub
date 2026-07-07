@@ -69,8 +69,9 @@ main{flex:1;padding:24px;max-width:820px}
 .q-text{font-size:15px;font-weight:600;line-height:1.65;color:#1e293b;margin-bottom:10px}
 .q-condition{background:#f8fafc;border-left:3px solid #93c5fd;border-radius:0 8px 8px 0;padding:10px 14px;margin-bottom:12px;font-size:14px;color:#334155;white-space:pre-wrap;line-height:1.6}
 .choices{display:flex;flex-direction:column;gap:6px}
-.choice{padding:10px 14px;border-radius:10px;border:1.5px solid #e2e8f0;cursor:pointer;font-size:14px;line-height:1.5;text-align:left;background:#fff;width:100%;color:#1e293b}
-.choice:hover:not([disabled]){border-color:#93c5fd;background:#f0f9ff}
+.choice{padding:10px 14px;border-radius:10px;border:1.5px solid #e2e8f0;cursor:pointer;font-size:14px;line-height:1.5;text-align:left;background:#fff;width:100%;color:#1e293b;user-select:text;-webkit-user-select:text;-webkit-touch-callout:default}
+.q-text,.q-condition{user-select:text;-webkit-user-select:text;-webkit-touch-callout:default}
+.choice:hover:not([disabled]):not(.correct):not(.wrong):not(.selected){border-color:#93c5fd;background:#f0f9ff}
 .choice.correct{border-color:#22c55e!important;background:#f0fdf4!important;color:#166534;font-weight:600}
 .choice.wrong{border-color:#ef4444!important;background:#fef2f2!important;color:#991b1b}
 .choice.selected{border-color:#93c5fd!important;background:#eff6ff!important;color:#1e40af;font-weight:600}
