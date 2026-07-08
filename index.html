@@ -71,6 +71,8 @@ main{flex:1;padding:24px;max-width:820px}
 .choices{display:flex;flex-direction:column;gap:6px}
 .choice{padding:10px 14px;border-radius:10px;border:1.5px solid #e2e8f0;cursor:pointer;font-size:14px;line-height:1.5;text-align:left;background:#fff;width:100%;color:#1e293b;user-select:text;-webkit-user-select:text;-webkit-touch-callout:default}
 .q-text,.q-condition{user-select:text;-webkit-user-select:text;-webkit-touch-callout:default}
+.memo-hl{background:rgba(245,158,11,0.16);border-radius:3px;cursor:pointer;box-shadow:0 0 0 1px rgba(245,158,11,0.25)}
+#memoTip{position:fixed;transform:translate(-50%,-100%);max-width:260px;background:#1e293b;color:#fff;font-size:12.5px;line-height:1.5;padding:8px 12px;border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.3);z-index:1000;pointer-events:none;white-space:pre-wrap}
 .choice:hover:not([disabled]):not(.correct):not(.wrong):not(.selected){border-color:#93c5fd;background:#f0f9ff}
 .choice.correct{border-color:#22c55e!important;background:#f0fdf4!important;color:#166534;font-weight:600}
 .choice.wrong{border-color:#ef4444!important;background:#fef2f2!important;color:#991b1b}
@@ -151,6 +153,7 @@ main{flex:1;padding:24px;max-width:820px}
     </div>
   </main>
 </div>
+<div id="memoTip" style="display:none"></div>
 <footer style="text-align:center;padding:20px;font-size:13px;color:#94a3b8;border-top:1px solid #e2e8f0;background:#fff;margin-top:4px">
   <a href="about.html" style="color:#64748b;text-decoration:none;margin:0 8px">&#xC18C;&#xAC1C; &#xBC0F; &#xBB38;&#xC758;</a> |
   <a href="privacy.html" style="color:#64748b;text-decoration:none;margin:0 8px">&#xAC1C;&#xC778;&#xC815;&#xBCF4;&#xCC98;&#xB9AC;&#xBC29;&#xCE68;</a> |

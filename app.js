@@ -254,9 +254,60 @@ function wrongCount(){
   return w;
 }
 function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');}
-function highlight(s){
-  return esc(s).replace(/(틀린|틀리지|옳지 않은|옳지않은|잘못된|아닌 것|아닌것)/g,'<span style="color:#ef4444;font-weight:700">$1</span>')
-               .replace(/(옳은|맞는|올바른|모두 고른|모두고른)/g,'<span style="color:#2563eb;font-weight:700">$1</span>');
+function escAttr(s){return esc(s).replace(/"/g,'&quot;');}
+function highlightKeywords(escaped){
+  return escaped.replace(/(틀린|틀리지|옳지 않은|옳지않은|잘못된|아닌 것|아닌것)/g,'<span style="color:#ef4444;font-weight:700">$1</span>')
+                .replace(/(옳은|맞는|올바른|모두 고른|모두고른)/g,'<span style="color:#2563eb;font-weight:700">$1</span>');
+}
+function highlight(s){return highlightKeywords(esc(s));}
+function memoEsc(text,subjLabel,doKeyword){
+  text=text||'';
+  var relevant=[];
+  if(subjLabel&&text){
+    _memos.forEach(function(m){if(m.subj===subjLabel&&m.excerpt&&text.indexOf(m.excerpt)>=0)relevant.push(m);});
+  }
+  if(!relevant.length)return doKeyword?highlight(text):esc(text);
+  var matches=[];
+  relevant.forEach(function(m){
+    var idx=text.indexOf(m.excerpt);
+    while(idx>=0){matches.push({start:idx,end:idx+m.excerpt.length,note:m.note||''});idx=text.indexOf(m.excerpt,idx+1);}
+  });
+  matches.sort(function(a,b){return a.start-b.start||b.end-a.end;});
+  var clean=[];var lastEnd=-1;
+  matches.forEach(function(mt){if(mt.start>=lastEnd){clean.push(mt);lastEnd=mt.end;}});
+  var out='';var pos=0;
+  clean.forEach(function(mt){
+    var seg=text.slice(pos,mt.start);
+    out+=doKeyword?highlightKeywords(esc(seg)):esc(seg);
+    out+='<span class="memo-hl" data-note="'+escAttr(mt.note)+'" onpointerenter="if(event.pointerType===\'mouse\')showMemoTip(this)" onpointerleave="if(event.pointerType===\'mouse\')hideMemoTip()" onclick="event.stopPropagation();toggleMemoTip(this)">';
+    var inner=text.slice(mt.start,mt.end);
+    out+=doKeyword?highlightKeywords(esc(inner)):esc(inner);
+    out+='</span>';
+    pos=mt.end;
+  });
+  out+=doKeyword?highlightKeywords(esc(text.slice(pos))):esc(text.slice(pos));
+  return out;
+}
+function highlightQ(s,subjLabel){return memoEsc(s,subjLabel,true);}
+var _memoTipFor=null;
+function showMemoTip(el){
+  var tip=document.getElementById('memoTip');
+  if(!tip||!el)return;
+  var note=el.getAttribute('data-note')||'';
+  tip.textContent=note?note:'(메모 없이 저장한 하이라이트예요)';
+  var r=el.getBoundingClientRect();
+  tip.style.left=(r.left+r.width/2)+'px';
+  tip.style.top=(r.top-8)+'px';
+  tip.style.display='block';
+  _memoTipFor=el;
+}
+function hideMemoTip(){
+  var tip=document.getElementById('memoTip');
+  if(tip)tip.style.display='none';
+  _memoTipFor=null;
+}
+function toggleMemoTip(el){
+  if(_memoTipFor===el){hideMemoTip();}else{showMemoTip(el);}
 }
 
 function loadDbQuestions(){
@@ -428,7 +479,7 @@ function showJijun(){
     visibleItems.forEach(function(item){
       var k=_jijunSubj+'_'+sidx+'_'+item.num;
       var checked=!!_jijunChecked[k];
-      var textHtml=_jijunBlankMode?makeBlankHtml(item.text,k):esc(item.text);
+      var textHtml=_jijunBlankMode?makeBlankHtml(item.text,k):memoEsc(item.text,subj.subject);
       h+='<div style="display:flex;align-items:flex-start;gap:8px;padding:10px 16px;border-bottom:1px solid #f1f5f9;font-size:13px;line-height:1.7;color:#374151">';
       h+='<button id="jc_'+k+'" onclick="toggleJijunCheck(\''+k+'\')" style="flex-shrink:0;background:none;border:none;font-size:18px;cursor:pointer;color:'+(checked?'#f59e0b':'#cbd5e1')+';padding:0;margin-top:1px;line-height:1">'+(checked?'★':'☆')+'</button>';
       h+='<span style="flex-shrink:0;font-weight:700;color:#2563eb;min-width:20px">'+item.num+'.</span>';
@@ -582,8 +633,8 @@ function renderMain(){
   if(state.filter==='wrong'&&isAns)h+='<button class="btn-resolve" onclick="resolve(\''+key+'\')">✓ 이해했어요</button>';
   h+='<button class="btn-icon'+(isBm?' bookmarked':'')+'" onclick="toggleBm(\''+key+'\')">'+(isBm?'★':'☆')+'</button>';
   h+='<button onclick="toggleSkip(\''+key+'\')" title="'+(isSkip?'건너뛰기 해제':'이 문제 건너뛰기')+'" style="border:none;background:none;cursor:pointer;font-size:13px;font-weight:700;padding:4px 6px;border-radius:6px;color:'+(isSkip?'#ef4444':'#cbd5e1')+'">'+(isSkip?'✕ON':'✕')+'</button>';
-  h+='</div></div><div class="q-body"><div class="q-text">'+highlight(q.question)+'</div>';
-  if(q.condition)h+='<div class="q-condition">'+esc(q.condition)+'</div>';
+  h+='</div></div><div class="q-body"><div class="q-text">'+highlightQ(q.question,currentMemoSubject())+'</div>';
+  if(q.condition)h+='<div class="q-condition">'+memoEsc(q.condition,currentMemoSubject())+'</div>';
   if(q.image_url)h+='<div style="margin-bottom:12px"><img src="'+q.image_url+'" style="max-width:100%;border-radius:8px;border:1px solid #e2e8f0" alt="문제 이미지"></div>';
   h+='<div class="choices">';
   q.choices.forEach(function(c,i){
@@ -591,7 +642,7 @@ function renderMain(){
     var isElim=!isAns&&!!_eliminations[key+'_'+idx];
     var cls='choice'+(isAns?(state.examMode?' selected':(idx===q.answer?' correct':idx===chosen?' wrong':'')):'')+(isElim?' elim':'');
     h+='<div style="position:relative;display:flex;align-items:stretch;gap:0">';
-    h+='<button class="'+cls+'" onclick="pick(\''+key+'\','+idx+','+q.answer+')" style="flex:1;'+(isElim?'opacity:0.38;text-decoration:line-through;':'')+'">'+esc(c)+'</button>';
+    h+='<button class="'+cls+'" onclick="pick(\''+key+'\','+idx+','+q.answer+')" style="flex:1;'+(isElim?'opacity:0.38;text-decoration:line-through;':'')+'">'+memoEsc(c,currentMemoSubject())+'</button>';
     if(!isAns){
       h+='<button onclick="event.stopPropagation();toggleElim(\''+key+'\','+idx+',\'exam\')" style="min-width:38px;border:1.5px solid '+(isElim?'#ef4444':'#e2e8f0')+';border-left:none;border-radius:0 10px 10px 0;background:'+(isElim?'#fef2f2':'#f8fafc')+';cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;padding:0">'+(isElim?'<span style="color:#ef4444;font-weight:900">&#x2715;</span>':'<span style="color:#cbd5e1">&#x25a1;</span>')+'</button>';
     }
@@ -755,8 +806,8 @@ function showMix(){
   h+='<div class="q-card" onmouseup="checkTextSelection()">';
   h+='<div class="q-header"><div style="display:flex;align-items:center;gap:8px"><span class="q-label">&#xC81C;'+m.year+'&#xD68C; '+num+'&#xBC88;</span></div>';
   h+='<div style="display:flex;gap:6px"><button onclick="toggleBmMix(\''+key+'\')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:2px;color:'+(state.bookmarks[key]?'#f59e0b':'#cbd5e1')+'">'+(state.bookmarks[key]?'&#x2605;':'&#x2606;')+'</button></div></div>';
-  h+='<div class="q-body"><div class="q-text">'+highlight(q.question)+'</div>';
-  if(q.condition)h+='<div class="q-condition">'+esc(q.condition)+'</div>';
+  h+='<div class="q-body"><div class="q-text">'+highlightQ(q.question,currentMemoSubject())+'</div>';
+  if(q.condition)h+='<div class="q-condition">'+memoEsc(q.condition,currentMemoSubject())+'</div>';
   if(q.image_url)h+='<div style="margin-bottom:12px"><img src="'+q.image_url+'" style="max-width:100%;border-radius:8px;border:1px solid #e2e8f0" alt="문제 이미지"></div>';
   h+='<div class="choices">';
   q.choices.forEach(function(c,i){
@@ -764,7 +815,7 @@ function showMix(){
     var isElim=!isAns&&!!_eliminations[key+'_'+idx];
     var cls='choice'+(isAns?(idx===q.answer?' correct':idx===chosen?' wrong':''):'');
     h+='<div style="position:relative;display:flex;align-items:stretch;gap:0">';
-    h+='<button class="'+cls+'" onclick="pickMix(\''+key+'\','+idx+')" style="flex:1;'+(isElim?'opacity:0.38;text-decoration:line-through;':'')+'">'+esc(c)+'</button>';
+    h+='<button class="'+cls+'" onclick="pickMix(\''+key+'\','+idx+')" style="flex:1;'+(isElim?'opacity:0.38;text-decoration:line-through;':'')+'">'+memoEsc(c,currentMemoSubject())+'</button>';
     if(!isAns){h+='<button onclick="event.stopPropagation();toggleElim(\''+key+'\','+idx+',\'mix\')" style="min-width:38px;border:1.5px solid '+(isElim?'#ef4444':'#e2e8f0')+';border-left:none;border-radius:0 10px 10px 0;background:'+(isElim?'#fef2f2':'#f8fafc')+';cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;padding:0">'+(isElim?'<span style="color:#ef4444;font-weight:900">&#x2715;</span>':'<span style="color:#cbd5e1">&#x25a1;</span>')+'</button>';}
     h+='</div>';
   });
@@ -1349,13 +1400,13 @@ function renderMyBook(){
   h+='<p style="margin-top:4px;font-size:13px;color:#64748b">'+qs.length+'문제 · '+_mbActive.choice_count+'지선다</p></div>';
   h+='<div class="q-card" onmouseup="checkTextSelection()"><div class="q-header"><span class="q-num">Q'+q.number+'</span><div class="q-actions">';
   h+='<button class="btn-icon'+(isBm?' bookmarked':'')+'" onclick="toggleBmMb('+key+')">'+(isBm?'★':'☆')+'</button>';
-  h+='</div></div><div class="q-body"><div class="q-text">'+highlight(q.question)+'</div>';
-  if(q.condition)h+='<div class="q-condition">'+esc(q.condition)+'</div>';
+  h+='</div></div><div class="q-body"><div class="q-text">'+highlightQ(q.question,currentMemoSubject())+'</div>';
+  if(q.condition)h+='<div class="q-condition">'+memoEsc(q.condition,currentMemoSubject())+'</div>';
   h+='<div class="choices">';
   q.choices.forEach(function(c,i){
     var idx=i+1;
     var cls='choice'+(isAns?(idx===q.answer?' correct':idx===chosen?' wrong':''):'');
-    h+='<button class="'+cls+'" onclick="pickMb('+key+','+idx+','+q.answer+')">'+esc(c)+'</button>';
+    h+='<button class="'+cls+'" onclick="pickMb('+key+','+idx+','+q.answer+')">'+memoEsc(c,currentMemoSubject())+'</button>';
   });
   h+='</div>';
   h+='<div class="explanation'+(isAns?' show':'')+'"><div class="explanation-title">💡 해설</div>'+esc(q.explanation)+'</div>';
