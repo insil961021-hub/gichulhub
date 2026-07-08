@@ -270,7 +270,7 @@ function memoEsc(text,subjLabel,doKeyword){
   var matches=[];
   relevant.forEach(function(m){
     var idx=text.indexOf(m.excerpt);
-    while(idx>=0){matches.push({start:idx,end:idx+m.excerpt.length,note:m.note||''});idx=text.indexOf(m.excerpt,idx+1);}
+    while(idx>=0){matches.push({start:idx,end:idx+m.excerpt.length,note:m.note||'',ts:m.ts});idx=text.indexOf(m.excerpt,idx+1);}
   });
   matches.sort(function(a,b){return a.start-b.start||b.end-a.end;});
   var clean=[];var lastEnd=-1;
@@ -279,7 +279,7 @@ function memoEsc(text,subjLabel,doKeyword){
   clean.forEach(function(mt){
     var seg=text.slice(pos,mt.start);
     out+=doKeyword?highlightKeywords(esc(seg)):esc(seg);
-    out+='<span class="memo-hl" data-note="'+escAttr(mt.note)+'" onpointerenter="if(event.pointerType===\'mouse\')showMemoTip(this)" onpointerleave="if(event.pointerType===\'mouse\')hideMemoTip()" onclick="event.stopPropagation();toggleMemoTip(this)">';
+    out+='<span class="memo-hl" data-note="'+escAttr(mt.note)+'" data-ts="'+mt.ts+'" onpointerenter="if(event.pointerType===\'mouse\')showMemoTip(this)" onpointerleave="if(event.pointerType===\'mouse\')hideMemoTip()" onclick="event.stopPropagation();openMemoEditor(this)">';
     var inner=text.slice(mt.start,mt.end);
     out+=doKeyword?highlightKeywords(esc(inner)):esc(inner);
     out+='</span>';
@@ -290,24 +290,86 @@ function memoEsc(text,subjLabel,doKeyword){
 }
 function highlightQ(s,subjLabel){return memoEsc(s,subjLabel,true);}
 var _memoTipFor=null;
+function positionMemoTip(el){
+  var tip=document.getElementById('memoTip');
+  var r=el.getBoundingClientRect();
+  tip.style.left=Math.min(Math.max(r.left+r.width/2,120),window.innerWidth-120)+'px';
+  tip.style.top=Math.max(r.top-8,80)+'px';
+}
 function showMemoTip(el){
   var tip=document.getElementById('memoTip');
   if(!tip||!el)return;
+  if(tip.getAttribute('data-editing')==='1')return;
   var note=el.getAttribute('data-note')||'';
-  tip.textContent=note?note:'(메모 없이 저장한 하이라이트예요)';
-  var r=el.getBoundingClientRect();
-  tip.style.left=(r.left+r.width/2)+'px';
-  tip.style.top=(r.top-8)+'px';
+  tip.style.pointerEvents='none';
+  tip.style.whiteSpace='pre-wrap';
+  tip.textContent=note?note:'(메모 없이 저장한 하이라이트예요 · 클릭하면 메모를 추가할 수 있어요)';
+  positionMemoTip(el);
   tip.style.display='block';
   _memoTipFor=el;
 }
 function hideMemoTip(){
   var tip=document.getElementById('memoTip');
-  if(tip)tip.style.display='none';
+  if(tip&&tip.getAttribute('data-editing')==='1')return;
+  if(tip){tip.style.display='none';tip.innerHTML='';}
   _memoTipFor=null;
 }
-function toggleMemoTip(el){
-  if(_memoTipFor===el){hideMemoTip();}else{showMemoTip(el);}
+function findMemoByTs(ts){
+  for(var i=0;i<_memos.length;i++){if(_memos[i].ts===ts)return _memos[i];}
+  return null;
+}
+function openMemoEditor(el){
+  var tip=document.getElementById('memoTip');
+  if(!tip)return;
+  var ts=parseInt(el.getAttribute('data-ts'),10);
+  var m=findMemoByTs(ts);
+  if(!m)return;
+  tip.setAttribute('data-editing','1');
+  tip.style.pointerEvents='auto';
+  tip.style.whiteSpace='normal';
+  var h='<div style="font-size:11.5px;color:#94a3b8;margin-bottom:6px;max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">"'+esc(m.excerpt)+'"</div>';
+  h+='<textarea id="memoEditArea" placeholder="메모 입력..." style="width:230px;min-height:64px;border-radius:8px;border:1px solid #475569;background:#0f172a;color:#fff;font-size:12.5px;padding:6px 8px;resize:vertical;box-sizing:border-box">'+esc(m.note)+'</textarea>';
+  h+='<div style="display:flex;gap:6px;margin-top:8px;justify-content:flex-end">';
+  h+='<button onclick="deleteMemoInline('+ts+')" style="background:#7f1d1d;color:#fecaca;border:none;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer">삭제</button>';
+  h+='<button onclick="closeMemoEditor()" style="background:#334155;color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer">닫기</button>';
+  h+='<button onclick="saveMemoInline('+ts+')" style="background:#2563eb;color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer">저장</button>';
+  h+='</div>';
+  tip.innerHTML=h;
+  positionMemoTip(el);
+  tip.style.display='block';
+  _memoTipFor=el;
+  var ta=document.getElementById('memoEditArea');
+  if(ta)ta.focus();
+}
+function closeMemoEditor(){
+  var tip=document.getElementById('memoTip');
+  if(tip){tip.removeAttribute('data-editing');tip.style.display='none';tip.innerHTML='';}
+  _memoTipFor=null;
+}
+function saveMemoInline(ts){
+  var ta=document.getElementById('memoEditArea');
+  var m=findMemoByTs(ts);
+  if(!ta||!m)return;
+  m.note=ta.value;
+  saveMemos();
+  if(_supa&&_user){_supa.from('memos').update({note:m.note}).eq('user_id',_user.id).eq('ts',ts).then(function(){});}
+  closeMemoEditor();
+  refreshCurrentView();
+}
+function deleteMemoInline(ts){
+  if(!confirm('이 메모를 삭제할까요?'))return;
+  var idx=_memos.findIndex(function(x){return x.ts===ts;});
+  if(idx>=0)_memos.splice(idx,1);
+  saveMemos();
+  if(_supa&&_user){_supa.from('memos').delete().eq('user_id',_user.id).eq('ts',ts).then(function(){});}
+  closeMemoEditor();
+  refreshCurrentView();
+}
+function refreshCurrentView(){
+  if(_navMode==='mix'){showMix();}
+  else if(_navMode==='jijun'){showJijun();}
+  else if(_navMode==='studio'){renderMyBook();}
+  else{renderMain();}
 }
 
 function loadDbQuestions(){
