@@ -150,7 +150,7 @@ function loadMemosFromSupa(){
   if(!_supa||!_user)return;
   _supa.from('memos').select('*').eq('user_id',_user.id).order('ts',{ascending:false}).then(function(result){
     if(result.error||!result.data)return;
-    var supaMemos=result.data.map(function(r){return {ts:r.ts,subj:r.subject,excerpt:r.excerpt,note:r.note||''};});
+    var supaMemos=result.data.map(function(r){return {ts:r.ts,subj:r.subject,qkey:r.qkey||'',excerpt:r.excerpt,note:r.note||''};});
     var merged={};
     _memos.forEach(function(m){merged[m.ts]=m;});
     supaMemos.forEach(function(m){merged[m.ts]=m;});
@@ -158,7 +158,7 @@ function loadMemosFromSupa(){
     var supaTsSet={};result.data.forEach(function(r){supaTsSet[r.ts]=true;});
     _memos.forEach(function(m){
       if(!supaTsSet[m.ts]){
-        _supa.from('memos').insert({user_id:_user.id,subject:m.subj,excerpt:m.excerpt,note:m.note||'',ts:m.ts}).then(function(){});
+        _supa.from('memos').insert({user_id:_user.id,subject:m.subj,qkey:m.qkey||'',excerpt:m.excerpt,note:m.note||'',ts:m.ts}).then(function(){});
       }
     });
     saveMemos();
@@ -260,11 +260,17 @@ function highlightKeywords(escaped){
                 .replace(/(옳은|맞는|올바른|모두 고른|모두고른)/g,'<span style="color:#2563eb;font-weight:700">$1</span>');
 }
 function highlight(s){return highlightKeywords(esc(s));}
-function memoEsc(text,subjLabel,doKeyword){
+function memoEsc(text,subjLabel,doKeyword,qkey){
   text=text||'';
   var relevant=[];
   if(subjLabel&&text){
-    _memos.forEach(function(m){if(m.subj===subjLabel&&m.excerpt&&text.indexOf(m.excerpt)>=0)relevant.push(m);});
+    _memos.forEach(function(m){
+      if(!m.excerpt||text.indexOf(m.excerpt)<0)return;
+      // qkey가 있는(=문제 단위로 저장된) 메모는 정확히 같은 문제에서만 매칭
+      // qkey가 없는(예전 버전에서 저장된) 메모는 과목 단위로만 매칭(하위호환)
+      if(m.qkey){if(m.qkey===qkey)relevant.push(m);}
+      else if(m.subj===subjLabel)relevant.push(m);
+    });
   }
   if(!relevant.length)return doKeyword?highlight(text):esc(text);
   var matches=[];
@@ -288,7 +294,7 @@ function memoEsc(text,subjLabel,doKeyword){
   out+=doKeyword?highlightKeywords(esc(text.slice(pos))):esc(text.slice(pos));
   return out;
 }
-function highlightQ(s,subjLabel){return memoEsc(s,subjLabel,true);}
+function highlightQ(s,subjLabel,qkey){return memoEsc(s,subjLabel,true,qkey);}
 var _memoTipFor=null;
 function positionMemoTip(el){
   var tip=document.getElementById('memoTip');
@@ -541,8 +547,8 @@ function showJijun(){
     visibleItems.forEach(function(item){
       var k=_jijunSubj+'_'+sidx+'_'+item.num;
       var checked=!!_jijunChecked[k];
-      var textHtml=_jijunBlankMode?makeBlankHtml(item.text,k):memoEsc(item.text,subj.subject);
-      h+='<div style="display:flex;align-items:flex-start;gap:8px;padding:10px 16px;border-bottom:1px solid #f1f5f9;font-size:13px;line-height:1.7;color:#374151">';
+      var textHtml=_jijunBlankMode?makeBlankHtml(item.text,k):memoEsc(item.text,subj.subject,false,k);
+      h+='<div data-qkey="'+k+'" style="display:flex;align-items:flex-start;gap:8px;padding:10px 16px;border-bottom:1px solid #f1f5f9;font-size:13px;line-height:1.7;color:#374151">';
       h+='<button id="jc_'+k+'" onclick="toggleJijunCheck(\''+k+'\')" style="flex-shrink:0;background:none;border:none;font-size:18px;cursor:pointer;color:'+(checked?'#f59e0b':'#cbd5e1')+';padding:0;margin-top:1px;line-height:1">'+(checked?'★':'☆')+'</button>';
       h+='<span style="flex-shrink:0;font-weight:700;color:#2563eb;min-width:20px">'+item.num+'.</span>';
       h+='<span>'+textHtml+'</span>';
@@ -571,6 +577,13 @@ function currentMemoSubject(){
   if(_navMode==='studio')return _mbActive?_mbActive.title:'';
   var s=subj();return s?s.subject:'';
 }
+function getSelectionQKey(sel){
+  var node=sel&&sel.anchorNode;
+  if(!node)return '';
+  var el=node.nodeType===3?node.parentElement:node;
+  var found=el&&el.closest?el.closest('[data-qkey]'):null;
+  return found?(found.getAttribute('data-qkey')||''):'';
+}
 function checkTextSelection(){
   var bar=document.getElementById('selBar');
   if(!bar)return;
@@ -581,6 +594,7 @@ function checkTextSelection(){
     if(prev)prev.textContent=txt.length>40?txt.slice(0,40)+'…':txt;
     bar.style.display='flex';
     bar.setAttribute('data-sel',txt);
+    bar.setAttribute('data-qkey',getSelectionQKey(sel));
   }else{
     bar.style.display='none';
   }
@@ -589,12 +603,13 @@ function saveTextHighlight(){
   var bar=document.getElementById('selBar');
   var txt=bar?bar.getAttribute('data-sel'):'';
   if(!txt)return;
+  var qkey=bar.getAttribute('data-qkey')||'';
   var note=prompt('메모를 남겨보세요 (선택, 비워도 저장돼요)','')||'';
-  var entry={ts:Date.now(),subj:currentMemoSubject(),excerpt:txt,note:note};
+  var entry={ts:Date.now(),subj:currentMemoSubject(),qkey:qkey,excerpt:txt,note:note};
   _memos.unshift(entry);
   saveMemos();
   if(_supa&&_user){
-    _supa.from('memos').insert({user_id:_user.id,subject:entry.subj,excerpt:entry.excerpt,note:entry.note,ts:entry.ts}).then(function(){});
+    _supa.from('memos').insert({user_id:_user.id,subject:entry.subj,qkey:entry.qkey,excerpt:entry.excerpt,note:entry.note,ts:entry.ts}).then(function(){});
   }
   bar.style.display='none';
   if(window.getSelection)window.getSelection().removeAllRanges();
@@ -691,12 +706,12 @@ function renderMain(){
     var btn='<button class="'+cls+'" onclick="goTo('+i+')">'+qq.number+'</button>';
     if(i<half)r1+=btn;else r2+=btn;
   });
-  h+='<div class="q-card" onmouseup="checkTextSelection()"><div class="q-header"><span class="q-num">Q'+q.number+'</span>'+(q.is_amended?'<span style="display:inline-block;background:#ff6b35;color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;margin-left:6px;vertical-align:middle">개정</span>':'')+'<div class="q-actions">';
+  h+='<div class="q-card" data-qkey="'+key+'" onmouseup="checkTextSelection()"><div class="q-header"><span class="q-num">Q'+q.number+'</span>'+(q.is_amended?'<span style="display:inline-block;background:#ff6b35;color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;margin-left:6px;vertical-align:middle">개정</span>':'')+'<div class="q-actions">';
   if(state.filter==='wrong'&&isAns)h+='<button class="btn-resolve" onclick="resolve(\''+key+'\')">✓ 이해했어요</button>';
   h+='<button class="btn-icon'+(isBm?' bookmarked':'')+'" onclick="toggleBm(\''+key+'\')">'+(isBm?'★':'☆')+'</button>';
   h+='<button onclick="toggleSkip(\''+key+'\')" title="'+(isSkip?'건너뛰기 해제':'이 문제 건너뛰기')+'" style="border:none;background:none;cursor:pointer;font-size:13px;font-weight:700;padding:4px 6px;border-radius:6px;color:'+(isSkip?'#ef4444':'#cbd5e1')+'">'+(isSkip?'✕ON':'✕')+'</button>';
-  h+='</div></div><div class="q-body"><div class="q-text">'+highlightQ(q.question,currentMemoSubject())+'</div>';
-  if(q.condition)h+='<div class="q-condition">'+memoEsc(q.condition,currentMemoSubject())+'</div>';
+  h+='</div></div><div class="q-body"><div class="q-text">'+highlightQ(q.question,currentMemoSubject(),key)+'</div>';
+  if(q.condition)h+='<div class="q-condition">'+memoEsc(q.condition,currentMemoSubject(),false,key)+'</div>';
   if(q.image_url)h+='<div style="margin-bottom:12px"><img src="'+q.image_url+'" style="max-width:100%;border-radius:8px;border:1px solid #e2e8f0" alt="문제 이미지"></div>';
   h+='<div class="choices">';
   q.choices.forEach(function(c,i){
@@ -704,7 +719,7 @@ function renderMain(){
     var isElim=!isAns&&!!_eliminations[key+'_'+idx];
     var cls='choice'+(isAns?(state.examMode?' selected':(idx===q.answer?' correct':idx===chosen?' wrong':'')):'')+(isElim?' elim':'');
     h+='<div style="position:relative;display:flex;align-items:stretch;gap:0">';
-    h+='<button class="'+cls+'" onclick="pick(\''+key+'\','+idx+','+q.answer+')" style="flex:1;'+(isElim?'opacity:0.38;text-decoration:line-through;':'')+'">'+memoEsc(c,currentMemoSubject())+'</button>';
+    h+='<button class="'+cls+'" onclick="pick(\''+key+'\','+idx+','+q.answer+')" style="flex:1;'+(isElim?'opacity:0.38;text-decoration:line-through;':'')+'">'+memoEsc(c,currentMemoSubject(),false,key)+'</button>';
     if(!isAns){
       h+='<button onclick="event.stopPropagation();toggleElim(\''+key+'\','+idx+',\'exam\')" style="min-width:38px;border:1.5px solid '+(isElim?'#ef4444':'#e2e8f0')+';border-left:none;border-radius:0 10px 10px 0;background:'+(isElim?'#fef2f2':'#f8fafc')+';cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;padding:0">'+(isElim?'<span style="color:#ef4444;font-weight:900">&#x2715;</span>':'<span style="color:#cbd5e1">&#x25a1;</span>')+'</button>';
     }
@@ -865,11 +880,11 @@ function showMix(){
   h+='<button onclick="restartMix()" style="font-size:12px;padding:4px 12px;border-radius:8px;border:1.5px solid #fecaca;background:#fef2f2;color:#ef4444;cursor:pointer;font-weight:700">&#x1F504; &#xC0C8;&#xB85C; &#xC2DC;&#xC791;</button>';
   h+='<button onclick="showMixPicker()" style="font-size:12px;padding:4px 12px;border-radius:8px;border:1.5px solid #e2e8f0;background:#f8fafc;color:#64748b;cursor:pointer">&#x2190; &#xACFC;&#xBAA9; &#xBCC0;&#xACBD;</button>';
   h+='</div>';
-  h+='<div class="q-card" onmouseup="checkTextSelection()">';
+  h+='<div class="q-card" data-qkey="'+key+'" onmouseup="checkTextSelection()">';
   h+='<div class="q-header"><div style="display:flex;align-items:center;gap:8px"><span class="q-label">&#xC81C;'+m.year+'&#xD68C; '+num+'&#xBC88;</span></div>';
   h+='<div style="display:flex;gap:6px"><button onclick="toggleBmMix(\''+key+'\')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:2px;color:'+(state.bookmarks[key]?'#f59e0b':'#cbd5e1')+'">'+(state.bookmarks[key]?'&#x2605;':'&#x2606;')+'</button></div></div>';
-  h+='<div class="q-body"><div class="q-text">'+highlightQ(q.question,currentMemoSubject())+'</div>';
-  if(q.condition)h+='<div class="q-condition">'+memoEsc(q.condition,currentMemoSubject())+'</div>';
+  h+='<div class="q-body"><div class="q-text">'+highlightQ(q.question,currentMemoSubject(),key)+'</div>';
+  if(q.condition)h+='<div class="q-condition">'+memoEsc(q.condition,currentMemoSubject(),false,key)+'</div>';
   if(q.image_url)h+='<div style="margin-bottom:12px"><img src="'+q.image_url+'" style="max-width:100%;border-radius:8px;border:1px solid #e2e8f0" alt="문제 이미지"></div>';
   h+='<div class="choices">';
   q.choices.forEach(function(c,i){
@@ -877,7 +892,7 @@ function showMix(){
     var isElim=!isAns&&!!_eliminations[key+'_'+idx];
     var cls='choice'+(isAns?(idx===q.answer?' correct':idx===chosen?' wrong':''):'');
     h+='<div style="position:relative;display:flex;align-items:stretch;gap:0">';
-    h+='<button class="'+cls+'" onclick="pickMix(\''+key+'\','+idx+')" style="flex:1;'+(isElim?'opacity:0.38;text-decoration:line-through;':'')+'">'+memoEsc(c,currentMemoSubject())+'</button>';
+    h+='<button class="'+cls+'" onclick="pickMix(\''+key+'\','+idx+')" style="flex:1;'+(isElim?'opacity:0.38;text-decoration:line-through;':'')+'">'+memoEsc(c,currentMemoSubject(),false,key)+'</button>';
     if(!isAns){h+='<button onclick="event.stopPropagation();toggleElim(\''+key+'\','+idx+',\'mix\')" style="min-width:38px;border:1.5px solid '+(isElim?'#ef4444':'#e2e8f0')+';border-left:none;border-radius:0 10px 10px 0;background:'+(isElim?'#fef2f2':'#f8fafc')+';cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;padding:0">'+(isElim?'<span style="color:#ef4444;font-weight:900">&#x2715;</span>':'<span style="color:#cbd5e1">&#x25a1;</span>')+'</button>';}
     h+='</div>';
   });
@@ -1447,6 +1462,7 @@ function renderMyBook(){
   if(!qs||!qs.length){document.getElementById('main').innerHTML='<div style="padding:20px">문제가 없어요</div>';return;}
   if(_mbQ>=qs.length)_mbQ=0;
   var q=qs[_mbQ];var key=''+_mbQ;
+  var mbQkey=_mbActive.id+'_'+key;
   var chosen=_mbAns[key];var isAns=chosen!==undefined;var isBm=!!_mbBm[key];
   var half=Math.ceil(qs.length/2);var r1='',r2='';
   qs.forEach(function(qq,i){
@@ -1460,15 +1476,15 @@ function renderMyBook(){
   h+='<button onclick="showMyBookList()" style="padding:5px 12px;background:#f1f5f9;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">← 목록</button>';
   h+='<h1 style="font-size:18px;font-weight:800;color:#1e293b">'+esc(_mbActive.title)+'</h1></div>';
   h+='<p style="margin-top:4px;font-size:13px;color:#64748b">'+qs.length+'문제 · '+_mbActive.choice_count+'지선다</p></div>';
-  h+='<div class="q-card" onmouseup="checkTextSelection()"><div class="q-header"><span class="q-num">Q'+q.number+'</span><div class="q-actions">';
+  h+='<div class="q-card" data-qkey="'+mbQkey+'" onmouseup="checkTextSelection()"><div class="q-header"><span class="q-num">Q'+q.number+'</span><div class="q-actions">';
   h+='<button class="btn-icon'+(isBm?' bookmarked':'')+'" onclick="toggleBmMb('+key+')">'+(isBm?'★':'☆')+'</button>';
-  h+='</div></div><div class="q-body"><div class="q-text">'+highlightQ(q.question,currentMemoSubject())+'</div>';
-  if(q.condition)h+='<div class="q-condition">'+memoEsc(q.condition,currentMemoSubject())+'</div>';
+  h+='</div></div><div class="q-body"><div class="q-text">'+highlightQ(q.question,currentMemoSubject(),mbQkey)+'</div>';
+  if(q.condition)h+='<div class="q-condition">'+memoEsc(q.condition,currentMemoSubject(),false,mbQkey)+'</div>';
   h+='<div class="choices">';
   q.choices.forEach(function(c,i){
     var idx=i+1;
     var cls='choice'+(isAns?(idx===q.answer?' correct':idx===chosen?' wrong':''):'');
-    h+='<button class="'+cls+'" onclick="pickMb('+key+','+idx+','+q.answer+')">'+memoEsc(c,currentMemoSubject())+'</button>';
+    h+='<button class="'+cls+'" onclick="pickMb('+key+','+idx+','+q.answer+')">'+memoEsc(c,currentMemoSubject(),false,mbQkey)+'</button>';
   });
   h+='</div>';
   h+='<div class="explanation'+(isAns?' show':'')+'"><div class="explanation-title">💡 해설</div>'+esc(q.explanation)+'</div>';
