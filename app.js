@@ -8,6 +8,7 @@ var state={examYear:36,subjectIdx:0,filter:'all',search:'',currentQ:0,answers:{}
 var _myBooks=[];var _mbActive=null;var _mbQ=0;var _mbAns={};var _mbBm={};var _mbChoiceCount=5;
 var _navMode='exam';var _mbExpStyle='friendly';var _mbManualQs=[];var _jijunSubj=0;var _jijunChecked={};var _jijunBlankMode=false;var _jijunViewMode='all';var _showSkipped=false;var _studyLog=[];var _eliminations={};var _memos=[];
 var _mixSubjName='';var _mixQuestions=[];var _mixCurrentQ=0;var _mixAnswers={};
+var _wrongNotes=[];var _wnSearch='';var _wnFilter='';var _wnActive=null;
 function loadJijunChecked(){try{_jijunChecked=JSON.parse(localStorage.getItem('gh_jijun')||'{}');}catch(e){_jijunChecked={};}}
 function saveJijunChecked(){try{localStorage.setItem('gh_jijun',JSON.stringify(_jijunChecked));}catch(e){}}
 loadJijunChecked();
@@ -193,11 +194,137 @@ function deleteMemo(ts){
   if(_supa&&_user){_supa.from('memos').delete().eq('user_id',_user.id).eq('ts',ts).then(function(){});}
   showMemoList();
 }
+// ── 나만의 오답노트 (자유 기록형) ──────────────────
+function loadWrongNotes(){try{_wrongNotes=JSON.parse(localStorage.getItem('gh_wrongnote')||'[]');}catch(e){_wrongNotes=[];}}
+function saveWrongNotesLocal(){try{localStorage.setItem('gh_wrongnote',JSON.stringify(_wrongNotes));}catch(e){}}
+function loadWrongNotesFromSupa(){
+  if(!_supa||!_user)return;
+  _supa.from('wrong_notes').select('*').eq('user_id',_user.id).then(function(result){
+    if(result.error||!result.data)return;
+    var supaNotes=result.data.map(function(r){return {id:r.id,subject:r.subject||'',title:r.title||'',content:r.content||''};});
+    var merged={};
+    _wrongNotes.forEach(function(n){merged[n.id]=n;});
+    supaNotes.forEach(function(n){merged[n.id]=n;});
+    _wrongNotes=Object.keys(merged).map(function(k){return merged[k];}).sort(function(a,b){return b.id-a.id;});
+    var supaIdSet={};result.data.forEach(function(r){supaIdSet[r.id]=true;});
+    _wrongNotes.forEach(function(n){
+      if(!supaIdSet[n.id]){
+        _supa.from('wrong_notes').insert({id:n.id,user_id:_user.id,subject:n.subject||'',title:n.title||'',content:n.content||''}).then(function(){});
+      }
+    });
+    saveWrongNotesLocal();
+    if(_navMode==='wrongnote'&&!_wnActive)showWrongNoteList();
+  });
+}
+function setWnSearch(v){_wnSearch=v;showWrongNoteList();}
+function setWnFilter(s){_wnFilter=s;showWrongNoteList();}
+function showWrongNoteList(){
+  _navMode='wrongnote';_wnActive=null;
+  renderSidebar();
+  var subjs=[];var seen={};
+  _wrongNotes.forEach(function(n){if(n.subject&&!seen[n.subject]){seen[n.subject]=true;subjs.push(n.subject);}});
+  var list=_wrongNotes.filter(function(n){
+    if(_wnFilter&&n.subject!==_wnFilter)return false;
+    if(_wnSearch){
+      var kw=_wnSearch.toLowerCase();
+      return (n.title||'').toLowerCase().indexOf(kw)>=0||(n.content||'').toLowerCase().indexOf(kw)>=0||(n.subject||'').toLowerCase().indexOf(kw)>=0;
+    }
+    return true;
+  });
+  var h='<div class="page-header"><h1>&#x1F4D3; 나만의 오답노트</h1><p>내가 직접 정리하는 오답&middot;개념 노트 &middot; 총 '+_wrongNotes.length+'개</p></div>';
+  h+='<div style="max-width:700px;margin:0 auto">';
+  h+='<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">';
+  h+='<button onclick="openWrongNoteForm(null)" style="padding:8px 16px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">&#x2795; 새 오답 추가</button>';
+  h+='<input type="text" placeholder="&#x1F50D; 제목·내용 검색..." value="'+esc(_wnSearch)+'" oninput="setWnSearch(this.value)" style="padding:7px 12px;border:1.5px solid #e2e8f0;border-radius:20px;font-size:13px;outline:none;flex:1;min-width:140px">';
+  h+='</div>';
+  if(subjs.length){
+    h+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px">';
+    h+='<button class="filter-btn'+(!_wnFilter?' active':'')+'" onclick="setWnFilter(\'\')">전체 '+_wrongNotes.length+'</button>';
+    subjs.forEach(function(s){
+      var cnt=_wrongNotes.filter(function(n){return n.subject===s;}).length;
+      h+='<button class="filter-btn'+(_wnFilter===s?' active':'')+'" onclick="setWnFilter(\''+s+'\')">'+esc(s)+' '+cnt+'</button>';
+    });
+    h+='</div>';
+  }
+  if(!list.length){
+    var emptyMsg=_wrongNotes.length?'해당하는 노트가 없어요!':'아직 작성한 오답노트가 없어요.<br>위 버튼으로 첫 노트를 만들어보세요!';
+    h+='<div class="empty"><div style="font-size:48px">&#x1F4D3;</div><p>'+emptyMsg+'</p></div>';
+  }else{
+    list.forEach(function(n){
+      h+='<div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:18px 20px;margin-bottom:14px;cursor:pointer;transition:border-color .15s" onclick="openWrongNoteForm('+n.id+')" onmouseover="this.style.borderColor=\'#93c5fd\'" onmouseout="this.style.borderColor=\'#e2e8f0\'">';
+      h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px">';
+      h+='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">';
+      if(n.subject)h+='<span style="font-size:11px;font-weight:700;color:#2563eb;background:#eff6ff;padding:3px 10px;border-radius:20px;white-space:nowrap">'+esc(n.subject)+'</span>';
+      h+='<span style="font-size:15.5px;font-weight:700;color:#1e293b">'+esc(n.title)+'</span>';
+      h+='</div>';
+      h+='<button onclick="event.stopPropagation();deleteWrongNote('+n.id+')" style="background:none;border:none;color:#cbd5e1;cursor:pointer;font-size:13px;flex-shrink:0;padding:2px 4px">✕</button>';
+      h+='</div>';
+      h+='<div style="font-size:14px;line-height:1.75;color:#475569;white-space:pre-wrap">'+esc(n.content)+'</div>';
+      h+='<div style="font-size:11px;color:#94a3b8;margin-top:12px">'+new Date(n.id).toLocaleDateString('ko-KR')+'</div>';
+      h+='</div>';
+    });
+  }
+  h+='</div>';
+  document.getElementById('main').innerHTML=h;
+}
+function openWrongNoteForm(id){
+  _navMode='wrongnote';
+  var n=id?_wrongNotes.find(function(x){return x.id===id;}):null;
+  _wnActive=n?{id:n.id,subject:n.subject||'',title:n.title||'',content:n.content||''}:{id:null,subject:'',title:'',content:''};
+  renderSidebar();
+  var h='<div class="page-header"><h1>'+(n?'&#x270F;&#xFE0F; 오답노트 수정':'&#x270D;&#xFE0F; 새 오답노트')+'</h1></div>';
+  h+='<div style="max-width:640px;margin:0 auto">';
+  h+='<button onclick="showWrongNoteList()" style="margin-bottom:14px;padding:6px 14px;background:#f1f5f9;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">← 목록으로</button>';
+  h+='<div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:22px">';
+  h+='<label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:6px">과목 (선택)</label>';
+  h+='<input list="wnSubjList" id="wnSubject" value="'+esc(_wnActive.subject)+'" placeholder="예: 부동산공법" style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;margin-bottom:16px;box-sizing:border-box">';
+  h+='<datalist id="wnSubjList">';
+  getAllSubjectNames().forEach(function(s){h+='<option value="'+esc(s.name)+'">';});
+  h+='</datalist>';
+  h+='<label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:6px">제목</label>';
+  h+='<input id="wnTitle" value="'+esc(_wnActive.title)+'" placeholder="예: 개발진흥지구 관련 헷갈림" style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:15px;font-weight:600;margin-bottom:16px;box-sizing:border-box">';
+  h+='<label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:6px">내용</label>';
+  h+='<textarea id="wnContent" placeholder="문제 내용, 왜 틀렸는지, 정답 개념 등을 자유롭게 적어보세요" style="width:100%;min-height:220px;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;line-height:1.75;resize:vertical;box-sizing:border-box;font-family:inherit">'+esc(_wnActive.content)+'</textarea>';
+  h+='<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px">';
+  if(n)h+='<button onclick="deleteWrongNote('+n.id+')" style="padding:9px 18px;background:#fef2f2;color:#ef4444;border:1.5px solid #fecaca;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">삭제</button>';
+  h+='<button onclick="showWrongNoteList()" style="padding:9px 18px;background:#f1f5f9;color:#475569;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">취소</button>';
+  h+='<button onclick="saveWrongNote()" style="padding:9px 20px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">저장</button>';
+  h+='</div></div></div>';
+  document.getElementById('main').innerHTML=h;
+}
+function saveWrongNote(){
+  var subjEl=document.getElementById('wnSubject');var titleEl=document.getElementById('wnTitle');var contentEl=document.getElementById('wnContent');
+  var subject=subjEl?subjEl.value.replace(/^\s+|\s+$/g,''):'';
+  var title=titleEl?titleEl.value.replace(/^\s+|\s+$/g,''):'';
+  var content=contentEl?contentEl.value:'';
+  if(!title){alert('제목을 입력해주세요!');return;}
+  var isNew=!_wnActive.id;
+  var id=_wnActive.id||Date.now();
+  if(isNew){
+    _wrongNotes.unshift({id:id,subject:subject,title:title,content:content});
+  }else{
+    var idx=_wrongNotes.findIndex(function(x){return x.id===id;});
+    if(idx>=0)_wrongNotes[idx]={id:id,subject:subject,title:title,content:content};
+  }
+  saveWrongNotesLocal();
+  if(_supa&&_user){
+    _supa.from('wrong_notes').upsert({id:id,user_id:_user.id,subject:subject,title:title,content:content},{onConflict:'id'}).then(function(){});
+  }
+  showWrongNoteList();
+}
+function deleteWrongNote(id){
+  if(!confirm('이 오답노트를 삭제할까요?'))return;
+  var idx=_wrongNotes.findIndex(function(x){return x.id===id;});
+  if(idx>=0)_wrongNotes.splice(idx,1);
+  saveWrongNotesLocal();
+  if(_supa&&_user){_supa.from('wrong_notes').delete().eq('user_id',_user.id).eq('id',id).then(function(){});}
+  showWrongNoteList();
+}
 function toggleSkip(key){
   if(state.skip[key]){delete state.skip[key];}else{state.skip[key]=true;}
   saveS();renderMain();renderSidebar();
 }
-loadS();loadStudyLog();loadMix();loadMemos();
+loadS();loadStudyLog();loadMix();loadMemos();loadWrongNotes();
 function saveNavState(){
   try{localStorage.setItem('gh_nav',JSON.stringify({
     y:state.examYear,s:state.subjectIdx,q:state.currentQ,f:state.filter,
@@ -470,6 +597,7 @@ function syncFromSupa(){
   loadMyBooks();
   loadStudyLogFromSupa();
   loadMemosFromSupa();
+  loadWrongNotesFromSupa();
 }
 function toggleMenu(){
   var sd=document.getElementById('sidebar');
@@ -619,7 +747,8 @@ function renderSidebar(){
   if(_navMode==='jijun'){
     var h='<div class="sidebar-close-btn" onclick="closeMenu()"><span style="font-size:20px">✕</span> 닫기</div>';
     h+='<div class="sidebar-section"><div class="sidebar-item" onclick="navTabExam()" style="color:#64748b;font-size:12px">← 기출문제로</div>';
-    h+='<div class="sidebar-item" onclick="showMemoList();closeMenu()">&#x1F4DD; 메모장'+(_memos.length?'<span class="sidebar-badge" style="background:#f59e0b">'+_memos.length+'</span>':'')+'</div></div>';
+    h+='<div class="sidebar-item" onclick="showMemoList();closeMenu()">&#x1F4DD; 메모장'+(_memos.length?'<span class="sidebar-badge" style="background:#f59e0b">'+_memos.length+'</span>':'')+'</div>';
+    h+='<div class="sidebar-item" onclick="showWrongNoteList();closeMenu()">&#x1F4D3; 나만의 오답노트'+(_wrongNotes.length?'<span class="sidebar-badge" style="background:#7c3aed">'+_wrongNotes.length+'</span>':'')+'</div></div>';
     h+='<div class="sidebar-section"><span class="sidebar-label">기출지문</span>';
     if(typeof _jijunData!=='undefined'&&_jijunData){
       _jijunData.forEach(function(subj,i){
@@ -656,6 +785,7 @@ function renderSidebar(){
   h+='</div><hr class="sidebar-divider"><div class="sidebar-section">';
   h+='<div class="sidebar-item" onclick="openMix();closeMenu()">&#x1F500; 섞어풀기</div>';
   h+='<div class="sidebar-item" onclick="showWrong();closeMenu()">📕 오답노트'+(w>0?'<span class="sidebar-badge">'+w+'</span>':'')+'</div>';
+  h+='<div class="sidebar-item" onclick="showWrongNoteList();closeMenu()">&#x1F4D3; 나만의 오답노트'+(_wrongNotes.length?'<span class="sidebar-badge" style="background:#7c3aed">'+_wrongNotes.length+'</span>':'')+'</div>';
   h+='<div class="sidebar-item" onclick="showStats()">📊 내 통계</div>';
   h+='<div class="sidebar-item" onclick="showPdf();closeMenu()">📥 PDF 다운로드</div>';
   h+='<div class="sidebar-item" onclick="navTabJijun()">📋 기출지문</div>';
