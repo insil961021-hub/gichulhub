@@ -195,13 +195,40 @@ function deleteMemo(ts){
   showMemoList();
 }
 // ── 나만의 오답노트 (자유 기록형) ──────────────────
-function loadWrongNotes(){try{_wrongNotes=JSON.parse(localStorage.getItem('gh_wrongnote')||'[]');}catch(e){_wrongNotes=[];}}
+var _wnExpanded={};var _wnStarredOnly=false;var _wnShowMastered=false;
+function loadWrongNotes(){
+  try{
+    _wrongNotes=JSON.parse(localStorage.getItem('gh_wrongnote')||'[]');
+    _wrongNotes.forEach(function(n){if(!Array.isArray(n.tags))n.tags=(n.tags?(''+n.tags).split(','):[]).filter(Boolean);});
+  }catch(e){_wrongNotes=[];}
+}
 function saveWrongNotesLocal(){try{localStorage.setItem('gh_wrongnote',JSON.stringify(_wrongNotes));}catch(e){}}
+function escPlain(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function renderNoteText(s){
+  var h=esc(s||'');
+  h=h.replace(/\*\*(.+?)\*\*/g,'<b>$1</b>');
+  h=h.replace(/==(.+?)==/g,'<mark style="background:#fef3c7;padding:0 3px;border-radius:3px">$1</mark>');
+  return h;
+}
+function wrapTextareaSelection(id,before,after){
+  var ta=document.getElementById(id);
+  if(!ta)return;
+  var start=ta.selectionStart,end=ta.selectionEnd;
+  var val=ta.value;
+  var selected=val.slice(start,end);
+  ta.value=val.slice(0,start)+before+selected+after+val.slice(end);
+  ta.focus();
+  ta.selectionStart=start+before.length;
+  ta.selectionEnd=start+before.length+selected.length;
+}
 function loadWrongNotesFromSupa(){
   if(!_supa||!_user)return;
   _supa.from('wrong_notes').select('*').eq('user_id',_user.id).then(function(result){
     if(result.error||!result.data)return;
-    var supaNotes=result.data.map(function(r){return {id:r.id,subject:r.subject||'',title:r.title||'',content:r.content||''};});
+    var supaNotes=result.data.map(function(r){return {
+      id:r.id,subject:r.subject||'',title:r.title||'',whyWrong:r.why_wrong||'',content:r.content||'',source:r.source||'',
+      tags:(r.tags?(''+r.tags).split(','):[]).filter(Boolean),starred:!!r.starred,mastered:!!r.mastered
+    };});
     var merged={};
     _wrongNotes.forEach(function(n){merged[n.id]=n;});
     supaNotes.forEach(function(n){merged[n.id]=n;});
@@ -209,7 +236,7 @@ function loadWrongNotesFromSupa(){
     var supaIdSet={};result.data.forEach(function(r){supaIdSet[r.id]=true;});
     _wrongNotes.forEach(function(n){
       if(!supaIdSet[n.id]){
-        _supa.from('wrong_notes').insert({id:n.id,user_id:_user.id,subject:n.subject||'',title:n.title||'',content:n.content||''}).then(function(){});
+        _supa.from('wrong_notes').insert({id:n.id,user_id:_user.id,subject:n.subject||'',title:n.title||'',why_wrong:n.whyWrong||'',content:n.content||'',source:n.source||'',tags:(n.tags||[]).join(','),starred:!!n.starred,mastered:!!n.mastered}).then(function(){});
       }
     });
     saveWrongNotesLocal();
@@ -218,49 +245,96 @@ function loadWrongNotesFromSupa(){
 }
 function setWnSearch(v){_wnSearch=v;showWrongNoteList();}
 function setWnFilter(s){_wnFilter=s;showWrongNoteList();}
+function toggleWnStarredOnly(){_wnStarredOnly=!_wnStarredOnly;showWrongNoteList();}
+function toggleWnShowMastered(){_wnShowMastered=!_wnShowMastered;showWrongNoteList();}
+function toggleWnExpand(id){_wnExpanded[id]=!_wnExpanded[id];showWrongNoteList();}
+function toggleWnStar(id,ev){
+  if(ev)ev.stopPropagation();
+  var n=_wrongNotes.find(function(x){return x.id===id;});
+  if(!n)return;
+  n.starred=!n.starred;
+  saveWrongNotesLocal();
+  if(_supa&&_user){_supa.from('wrong_notes').update({starred:n.starred}).eq('user_id',_user.id).eq('id',id).then(function(){});}
+  showWrongNoteList();
+}
+function toggleWnMastered(id,ev){
+  if(ev)ev.stopPropagation();
+  var n=_wrongNotes.find(function(x){return x.id===id;});
+  if(!n)return;
+  n.mastered=!n.mastered;
+  saveWrongNotesLocal();
+  if(_supa&&_user){_supa.from('wrong_notes').update({mastered:n.mastered}).eq('user_id',_user.id).eq('id',id).then(function(){});}
+  showWrongNoteList();
+}
 function showWrongNoteList(){
   _navMode='wrongnote';_wnActive=null;
   renderSidebar();
   var subjs=[];var seen={};
   _wrongNotes.forEach(function(n){if(n.subject&&!seen[n.subject]){seen[n.subject]=true;subjs.push(n.subject);}});
+  var masteredCount=_wrongNotes.filter(function(n){return n.mastered;}).length;
   var list=_wrongNotes.filter(function(n){
+    if(!_wnShowMastered&&n.mastered)return false;
     if(_wnFilter&&n.subject!==_wnFilter)return false;
+    if(_wnStarredOnly&&!n.starred)return false;
     if(_wnSearch){
       var kw=_wnSearch.toLowerCase();
-      return (n.title||'').toLowerCase().indexOf(kw)>=0||(n.content||'').toLowerCase().indexOf(kw)>=0||(n.subject||'').toLowerCase().indexOf(kw)>=0;
+      var tagStr=(n.tags||[]).join(' ').toLowerCase();
+      return (n.title||'').toLowerCase().indexOf(kw)>=0||(n.content||'').toLowerCase().indexOf(kw)>=0||(n.whyWrong||'').toLowerCase().indexOf(kw)>=0||(n.subject||'').toLowerCase().indexOf(kw)>=0||tagStr.indexOf(kw)>=0;
     }
     return true;
   });
   var h='<div class="page-header"><h1>&#x1F4D3; 나만의 오답노트</h1><p>내가 직접 정리하는 오답&middot;개념 노트 &middot; 총 '+_wrongNotes.length+'개</p></div>';
   h+='<div style="max-width:700px;margin:0 auto">';
-  h+='<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">';
-  h+='<button onclick="openWrongNoteForm(null)" style="padding:8px 16px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">&#x2795; 새 오답 추가</button>';
-  h+='<input type="text" placeholder="&#x1F50D; 제목·내용 검색..." value="'+esc(_wnSearch)+'" oninput="setWnSearch(this.value)" style="padding:7px 12px;border:1.5px solid #e2e8f0;border-radius:20px;font-size:13px;outline:none;flex:1;min-width:140px">';
+  h+='<div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px;-webkit-overflow-scrolling:touch">';
+  h+='<button class="filter-btn'+(!_wnFilter?' active':'')+'" style="flex-shrink:0;white-space:nowrap" onclick="setWnFilter(\'\')">전체 '+_wrongNotes.length+'</button>';
+  subjs.forEach(function(s){
+    var cnt=_wrongNotes.filter(function(n){return n.subject===s;}).length;
+    h+='<button class="filter-btn'+(_wnFilter===s?' active':'')+'" style="flex-shrink:0;white-space:nowrap" onclick="setWnFilter(\''+s+'\')">'+esc(s)+' '+cnt+'</button>';
+  });
   h+='</div>';
-  if(subjs.length){
-    h+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px">';
-    h+='<button class="filter-btn'+(!_wnFilter?' active':'')+'" onclick="setWnFilter(\'\')">전체 '+_wrongNotes.length+'</button>';
-    subjs.forEach(function(s){
-      var cnt=_wrongNotes.filter(function(n){return n.subject===s;}).length;
-      h+='<button class="filter-btn'+(_wnFilter===s?' active':'')+'" onclick="setWnFilter(\''+s+'\')">'+esc(s)+' '+cnt+'</button>';
-    });
-    h+='</div>';
+  h+='<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">';
+  h+='<button onclick="openWrongNoteForm(null)" style="padding:8px 16px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">&#x2795; 새 오답 추가'+(_wnFilter?' ('+esc(_wnFilter)+')':'')+'</button>';
+  h+='<button class="filter-btn'+(_wnStarredOnly?' active':'')+'" onclick="toggleWnStarredOnly()" style="'+(_wnStarredOnly?'background:#fffbeb;border-color:#f59e0b;color:#b45309':'')+'">&#x2B50; 즐겨찾기만</button>';
+  h+='<input type="text" placeholder="&#x1F50D; 제목·내용·태그 검색..." value="'+escPlain(_wnSearch)+'" oninput="setWnSearch(this.value)" style="padding:7px 12px;border:1.5px solid #e2e8f0;border-radius:20px;font-size:13px;outline:none;flex:1;min-width:140px">';
+  h+='</div>';
+  if(masteredCount>0){
+    h+='<div style="margin-bottom:14px"><button onclick="toggleWnShowMastered()" style="background:none;border:none;color:#16a34a;font-size:12.5px;font-weight:700;cursor:pointer;padding:0">'+(_wnShowMastered?'▲ 외운 노트 숨기기':'▼ 외운 노트 '+masteredCount+'개 더보기')+'</button></div>';
   }
   if(!list.length){
     var emptyMsg=_wrongNotes.length?'해당하는 노트가 없어요!':'아직 작성한 오답노트가 없어요.<br>위 버튼으로 첫 노트를 만들어보세요!';
     h+='<div class="empty"><div style="font-size:48px">&#x1F4D3;</div><p>'+emptyMsg+'</p></div>';
   }else{
     list.forEach(function(n){
-      h+='<div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:18px 20px;margin-bottom:14px;cursor:pointer;transition:border-color .15s" onclick="openWrongNoteForm('+n.id+')" onmouseover="this.style.borderColor=\'#93c5fd\'" onmouseout="this.style.borderColor=\'#e2e8f0\'">';
-      h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px">';
-      h+='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">';
-      if(n.subject)h+='<span style="font-size:11px;font-weight:700;color:#2563eb;background:#eff6ff;padding:3px 10px;border-radius:20px;white-space:nowrap">'+esc(n.subject)+'</span>';
-      h+='<span style="font-size:15.5px;font-weight:700;color:#1e293b">'+esc(n.title)+'</span>';
+      var open=!!_wnExpanded[n.id];
+      h+='<div style="background:#fff;border:1px solid '+(n.mastered?'#bbf7d0':'#e2e8f0')+';border-radius:14px;margin-bottom:12px;overflow:hidden">';
+      h+='<div style="padding:15px 18px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px" onclick="toggleWnExpand('+n.id+')">';
+      h+='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0">';
+      h+='<span style="font-size:13px;flex-shrink:0;color:#94a3b8">'+(open?'▾':'▸')+'</span>';
+      if(n.subject)h+='<span style="font-size:11px;font-weight:700;color:#2563eb;background:#eff6ff;padding:3px 10px;border-radius:20px;white-space:nowrap;flex-shrink:0">'+esc(n.subject)+'</span>';
+      h+='<span style="font-size:15px;font-weight:700;color:#1e293b">'+esc(n.title)+'</span>';
+      if(n.mastered)h+='<span style="font-size:11px;flex-shrink:0">✅</span>';
       h+='</div>';
-      h+='<button onclick="event.stopPropagation();deleteWrongNote('+n.id+')" style="background:none;border:none;color:#cbd5e1;cursor:pointer;font-size:13px;flex-shrink:0;padding:2px 4px">✕</button>';
+      h+='<div style="display:flex;gap:2px;flex-shrink:0">';
+      h+='<button onclick="toggleWnStar('+n.id+',event)" style="background:none;border:none;cursor:pointer;font-size:16px;padding:4px;color:'+(n.starred?'#f59e0b':'#cbd5e1')+'">'+(n.starred?'★':'☆')+'</button>';
+      h+='<button onclick="event.stopPropagation();openWrongNoteForm('+n.id+')" style="background:none;border:none;cursor:pointer;font-size:14px;padding:4px;color:#94a3b8">✏️</button>';
+      h+='<button onclick="event.stopPropagation();deleteWrongNote('+n.id+')" style="background:none;border:none;cursor:pointer;font-size:13px;padding:4px;color:#cbd5e1">✕</button>';
       h+='</div>';
-      h+='<div style="font-size:14px;line-height:1.75;color:#475569;white-space:pre-wrap">'+esc(n.content)+'</div>';
-      h+='<div style="font-size:11px;color:#94a3b8;margin-top:12px">'+new Date(n.id).toLocaleDateString('ko-KR')+'</div>';
+      h+='</div>';
+      if(open){
+        h+='<div style="padding:0 18px 18px;border-top:1px solid #f1f5f9">';
+        if(n.whyWrong)h+='<div style="margin-top:14px"><div style="font-size:11px;font-weight:700;color:#ef4444;margin-bottom:4px">&#x1F914; 틀린 이유</div><div style="font-size:13.5px;line-height:1.7;color:#475569;white-space:pre-wrap">'+renderNoteText(n.whyWrong)+'</div></div>';
+        if(n.content)h+='<div style="margin-top:14px"><div style="font-size:11px;font-weight:700;color:#2563eb;margin-bottom:4px">&#x1F4A1; 핵심 정리</div><div style="font-size:14px;line-height:1.75;color:#1e293b;white-space:pre-wrap">'+renderNoteText(n.content)+'</div></div>';
+        if(n.tags&&n.tags.length){
+          h+='<div style="margin-top:14px;display:flex;gap:6px;flex-wrap:wrap">';
+          n.tags.forEach(function(t){h+='<span style="font-size:11px;color:#7c3aed;background:#f5f3ff;padding:2px 9px;border-radius:20px">#'+esc(t)+'</span>';});
+          h+='</div>';
+        }
+        h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;flex-wrap:wrap;gap:8px">';
+        h+='<span style="font-size:11px;color:#94a3b8">'+(n.source?esc(n.source)+' &middot; ':'')+new Date(n.id).toLocaleDateString('ko-KR')+'</span>';
+        h+='<button onclick="toggleWnMastered('+n.id+',event)" style="padding:5px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid '+(n.mastered?'#86efac':'#e2e8f0')+';background:'+(n.mastered?'#f0fdf4':'#f8fafc')+';color:'+(n.mastered?'#16a34a':'#64748b')+'">'+(n.mastered?'✅ 외운 노트예요':'다 외웠어요')+'</button>';
+        h+='</div>';
+        h+='</div>';
+      }
       h+='</div>';
     });
   }
@@ -270,21 +344,37 @@ function showWrongNoteList(){
 function openWrongNoteForm(id){
   _navMode='wrongnote';
   var n=id?_wrongNotes.find(function(x){return x.id===id;}):null;
-  _wnActive=n?{id:n.id,subject:n.subject||'',title:n.title||'',content:n.content||''}:{id:null,subject:'',title:'',content:''};
+  _wnActive=n?{id:n.id,subject:n.subject||'',title:n.title||'',whyWrong:n.whyWrong||'',content:n.content||'',source:n.source||'',tags:n.tags||[]}:{id:null,subject:_wnFilter||'',title:'',whyWrong:'',content:'',source:'',tags:[]};
   renderSidebar();
   var h='<div class="page-header"><h1>'+(n?'&#x270F;&#xFE0F; 오답노트 수정':'&#x270D;&#xFE0F; 새 오답노트')+'</h1></div>';
   h+='<div style="max-width:640px;margin:0 auto">';
   h+='<button onclick="showWrongNoteList()" style="margin-bottom:14px;padding:6px 14px;background:#f1f5f9;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">← 목록으로</button>';
   h+='<div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:22px">';
   h+='<label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:6px">과목 (선택)</label>';
-  h+='<input list="wnSubjList" id="wnSubject" value="'+esc(_wnActive.subject)+'" placeholder="예: 부동산공법" style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;margin-bottom:16px;box-sizing:border-box">';
+  h+='<input list="wnSubjList" id="wnSubject" value="'+escPlain(_wnActive.subject)+'" placeholder="예: 부동산공법" style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;margin-bottom:16px;box-sizing:border-box">';
   h+='<datalist id="wnSubjList">';
-  getAllSubjectNames().forEach(function(s){h+='<option value="'+esc(s.name)+'">';});
+  getAllSubjectNames().forEach(function(s){h+='<option value="'+escPlain(s.name)+'">';});
   h+='</datalist>';
   h+='<label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:6px">제목</label>';
-  h+='<input id="wnTitle" value="'+esc(_wnActive.title)+'" placeholder="예: 개발진흥지구 관련 헷갈림" style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:15px;font-weight:600;margin-bottom:16px;box-sizing:border-box">';
-  h+='<label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:6px">내용</label>';
-  h+='<textarea id="wnContent" placeholder="문제 내용, 왜 틀렸는지, 정답 개념 등을 자유롭게 적어보세요" style="width:100%;min-height:220px;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;line-height:1.75;resize:vertical;box-sizing:border-box;font-family:inherit">'+esc(_wnActive.content)+'</textarea>';
+  h+='<input id="wnTitle" value="'+escPlain(_wnActive.title)+'" placeholder="예: 개발진흥지구 관련 헷갈림" style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:15px;font-weight:600;margin-bottom:16px;box-sizing:border-box">';
+  h+='<label style="display:block;font-size:12px;font-weight:700;color:#ef4444;margin-bottom:6px">&#x1F914; 틀린 이유 (선택)</label>';
+  h+='<textarea id="wnWhyWrong" placeholder="예: 3년/5년 숫자 헷갈림, 단서 조항을 못 봄..." style="width:100%;min-height:70px;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13.5px;line-height:1.6;resize:vertical;box-sizing:border-box;font-family:inherit;margin-bottom:16px">'+escPlain(_wnActive.whyWrong)+'</textarea>';
+  h+='<label style="display:block;font-size:12px;font-weight:700;color:#2563eb;margin-bottom:6px">&#x1F4A1; 핵심 정리</label>';
+  h+='<div style="display:flex;gap:6px;margin-bottom:6px">';
+  h+='<button type="button" onclick="wrapTextareaSelection(\'wnContent\',\'**\',\'**\')" style="padding:4px 10px;border:1.5px solid #e2e8f0;border-radius:6px;background:#f8fafc;font-size:12px;font-weight:700;cursor:pointer">B 굵게</button>';
+  h+='<button type="button" onclick="wrapTextareaSelection(\'wnContent\',\'==\',\'==\')" style="padding:4px 10px;border:1.5px solid #fde68a;border-radius:6px;background:#fffbeb;font-size:12px;font-weight:700;cursor:pointer;color:#92400e">&#x1F58D;&#xFE0F; 하이라이트</button>';
+  h+='</div>';
+  h+='<textarea id="wnContent" placeholder="핵심 키워드, 맞는 문장, 조문 등을 정리해보세요. 텍스트 선택 후 위 버튼으로 굵게/하이라이트 표시할 수 있어요" style="width:100%;min-height:180px;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;line-height:1.75;resize:vertical;box-sizing:border-box;font-family:inherit;margin-bottom:16px">'+escPlain(_wnActive.content)+'</textarea>';
+  h+='<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:6px">';
+  h+='<div style="flex:1;min-width:160px">';
+  h+='<label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:6px">출처 (선택)</label>';
+  h+='<input id="wnSource" value="'+escPlain(_wnActive.source)+'" placeholder="예: 34회 25번" style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13.5px;box-sizing:border-box">';
+  h+='</div>';
+  h+='<div style="flex:1;min-width:160px">';
+  h+='<label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:6px">태그 (공백으로 구분, 선택)</label>';
+  h+='<input id="wnTags" value="'+escPlain((_wnActive.tags||[]).join(' '))+'" placeholder="예: 결격사유 숫자헷갈림" style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13.5px;box-sizing:border-box">';
+  h+='</div>';
+  h+='</div>';
   h+='<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px">';
   if(n)h+='<button onclick="deleteWrongNote('+n.id+')" style="padding:9px 18px;background:#fef2f2;color:#ef4444;border:1.5px solid #fecaca;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">삭제</button>';
   h+='<button onclick="showWrongNoteList()" style="padding:9px 18px;background:#f1f5f9;color:#475569;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">취소</button>';
@@ -293,22 +383,27 @@ function openWrongNoteForm(id){
   document.getElementById('main').innerHTML=h;
 }
 function saveWrongNote(){
-  var subjEl=document.getElementById('wnSubject');var titleEl=document.getElementById('wnTitle');var contentEl=document.getElementById('wnContent');
-  var subject=subjEl?subjEl.value.replace(/^\s+|\s+$/g,''):'';
-  var title=titleEl?titleEl.value.replace(/^\s+|\s+$/g,''):'';
-  var content=contentEl?contentEl.value:'';
+  var g=function(id){var el=document.getElementById(id);return el?el.value:'';};
+  var subject=g('wnSubject').replace(/^\s+|\s+$/g,'');
+  var title=g('wnTitle').replace(/^\s+|\s+$/g,'');
+  var whyWrong=g('wnWhyWrong');
+  var content=g('wnContent');
+  var source=g('wnSource').replace(/^\s+|\s+$/g,'');
+  var tags=g('wnTags').split(/[\s,]+/).map(function(t){return t.replace(/^#/,'').replace(/^\s+|\s+$/g,'');}).filter(Boolean);
   if(!title){alert('제목을 입력해주세요!');return;}
   var isNew=!_wnActive.id;
   var id=_wnActive.id||Date.now();
+  var prev=isNew?{}:(_wrongNotes.find(function(x){return x.id===id;})||{});
+  var entry={id:id,subject:subject,title:title,whyWrong:whyWrong,content:content,source:source,tags:tags,starred:!!prev.starred,mastered:!!prev.mastered};
   if(isNew){
-    _wrongNotes.unshift({id:id,subject:subject,title:title,content:content});
+    _wrongNotes.unshift(entry);
   }else{
     var idx=_wrongNotes.findIndex(function(x){return x.id===id;});
-    if(idx>=0)_wrongNotes[idx]={id:id,subject:subject,title:title,content:content};
+    if(idx>=0)_wrongNotes[idx]=entry;
   }
   saveWrongNotesLocal();
   if(_supa&&_user){
-    _supa.from('wrong_notes').upsert({id:id,user_id:_user.id,subject:subject,title:title,content:content},{onConflict:'id'}).then(function(){});
+    _supa.from('wrong_notes').upsert({id:id,user_id:_user.id,subject:subject,title:title,why_wrong:whyWrong,content:content,source:source,tags:tags.join(','),starred:entry.starred,mastered:entry.mastered},{onConflict:'id'}).then(function(){});
   }
   showWrongNoteList();
 }
@@ -461,7 +556,7 @@ function openMemoEditor(el){
   tip.style.pointerEvents='auto';
   tip.style.whiteSpace='normal';
   var h='<div style="font-size:11.5px;color:#94a3b8;margin-bottom:6px;max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">"'+esc(m.excerpt)+'"</div>';
-  h+='<textarea id="memoEditArea" placeholder="메모 입력..." style="width:230px;min-height:64px;border-radius:8px;border:1px solid #475569;background:#0f172a;color:#fff;font-size:12.5px;padding:6px 8px;resize:vertical;box-sizing:border-box">'+esc(m.note)+'</textarea>';
+  h+='<textarea id="memoEditArea" placeholder="메모 입력..." style="width:230px;min-height:64px;border-radius:8px;border:1px solid #475569;background:#0f172a;color:#fff;font-size:12.5px;padding:6px 8px;resize:vertical;box-sizing:border-box">'+escPlain(m.note)+'</textarea>';
   h+='<div style="display:flex;gap:6px;margin-top:8px;justify-content:flex-end">';
   h+='<button onclick="deleteMemoInline('+ts+')" style="background:#7f1d1d;color:#fecaca;border:none;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer">삭제</button>';
   h+='<button onclick="closeMemoEditor()" style="background:#334155;color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer">닫기</button>';
