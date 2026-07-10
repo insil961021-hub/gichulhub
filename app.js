@@ -210,6 +210,16 @@ function renderNoteText(s){
   h=h.replace(/==(.+?)==/g,'<mark style="background:#fef3c7;padding:0 3px;border-radius:3px">$1</mark>');
   return h;
 }
+function renderNoteLines(s){
+  var lines=(s||'').split(/\n+/).map(function(l){return l.replace(/^\s+|\s+$/g,'');}).filter(Boolean);
+  if(!lines.length)return '';
+  var h='<div style="display:flex;flex-direction:column;gap:6px">';
+  lines.forEach(function(l){
+    h+='<div style="padding:10px 14px;border-radius:10px;border:1.5px solid #e2e8f0;background:#fff;font-size:14px;line-height:1.6;color:#1e293b">'+renderNoteText(l)+'</div>';
+  });
+  h+='</div>';
+  return h;
+}
 function wrapTextareaSelection(id,before,after){
   var ta=document.getElementById(id);
   if(!ta)return;
@@ -322,8 +332,8 @@ function showWrongNoteList(){
       h+='</div>';
       if(open){
         h+='<div style="padding:0 18px 18px;border-top:1px solid #f1f5f9">';
-        if(n.whyWrong)h+='<div style="margin-top:14px"><div style="font-size:11px;font-weight:700;color:#ef4444;margin-bottom:4px">&#x1F914; 틀린 이유</div><div style="font-size:13.5px;line-height:1.7;color:#475569;white-space:pre-wrap">'+renderNoteText(n.whyWrong)+'</div></div>';
-        if(n.content)h+='<div style="margin-top:14px"><div style="font-size:11px;font-weight:700;color:#2563eb;margin-bottom:4px">&#x1F4A1; 핵심 정리</div><div style="font-size:14px;line-height:1.75;color:#1e293b;white-space:pre-wrap">'+renderNoteText(n.content)+'</div></div>';
+        if(n.whyWrong)h+='<div style="margin-top:14px"><div style="font-size:11px;font-weight:700;color:#ef4444;margin-bottom:6px">&#x1F914; 틀린 이유</div>'+renderNoteLines(n.whyWrong)+'</div>';
+        if(n.content)h+='<div style="margin-top:14px"><div style="font-size:11px;font-weight:700;color:#2563eb;margin-bottom:6px">&#x1F4A1; 핵심 정리</div>'+renderNoteLines(n.content)+'</div>';
         if(n.tags&&n.tags.length){
           h+='<div style="margin-top:14px;display:flex;gap:6px;flex-wrap:wrap">';
           n.tags.forEach(function(t){h+='<span style="font-size:11px;color:#7c3aed;background:#f5f3ff;padding:2px 9px;border-radius:20px">#'+esc(t)+'</span>';});
