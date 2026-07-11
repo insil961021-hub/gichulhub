@@ -604,7 +604,8 @@ function toggleNoteHeader(id){
 function loadWrongNotesFromSupa(){
   if(!_supa||!_user)return;
   _supa.from('wrong_notes').select('*').eq('user_id',_user.id).then(function(result){
-    if(result.error||!result.data)return;
+    if(result.error){console.error('핵심노트 불러오기 실패:',result.error);return;}
+    if(!result.data)return;
     var supaNotes=result.data.map(function(r){
       var items=r.items;
       if(typeof items==='string'){try{items=JSON.parse(items);}catch(e){items=null;}}
@@ -712,6 +713,7 @@ function exportWrongNotesPdf(){
     h+='<div class="note">';
     if(n.subject)h+='<div class="subj">'+esc(n.subject)+'</div>';
     h+='<div class="title">'+esc(n.title)+(n.mastered?'<span class="mastered">✅ 외운 노트</span>':'')+'</div>';
+    if(n.summary)h+='<div class="summary">&#x1F4A1; '+renderNoteText(n.summary)+'</div>';
     if(n.items&&n.items.length){
       n.items.forEach(function(it){
         if(!it.text)return;
@@ -720,7 +722,6 @@ function exportWrongNotesPdf(){
         h+='</div>';
       });
     }
-    if(n.summary)h+='<div class="summary">&#x1F4A1; '+renderNoteText(n.summary)+'</div>';
     if(n.tags&&n.tags.length)h+='<div class="tags">'+n.tags.map(function(t){return '#'+esc(t);}).join(' ')+'</div>';
     if(n.source)h+='<div class="src">'+esc(n.source)+'</div>';
     h+='</div>';
@@ -779,8 +780,8 @@ function showWrongNoteList(){
       h+='</div>';
       if(open){
         h+='<div style="padding:0 18px 18px;border-top:1px solid #f1f5f9">';
-        if(n.items&&n.items.length)h+='<div style="margin-top:14px">'+renderNoteItems(n.items)+'</div>';
         if(n.summary)h+='<div style="margin-top:14px"><div style="font-size:11px;font-weight:700;color:#2563eb;margin-bottom:6px">&#x1F4A1; 요점정리</div><div style="font-size:14px;line-height:1.75;color:#1e293b;background:#f8fafc;border-radius:10px;padding:12px 14px">'+renderNoteText(n.summary)+'</div></div>';
+        if(n.items&&n.items.length)h+='<div style="margin-top:14px">'+renderNoteItems(n.items)+'</div>';
         if(n.tags&&n.tags.length){
           h+='<div style="margin-top:14px;display:flex;gap:6px;flex-wrap:wrap">';
           n.tags.forEach(function(t){h+='<span style="font-size:11px;color:#7c3aed;background:#f5f3ff;padding:2px 9px;border-radius:20px">#'+esc(t)+'</span>';});
@@ -842,6 +843,17 @@ function renderWnForm(){
   h+='</datalist>';
   h+='<label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:6px">제목</label>';
   h+='<input id="wnTitle" value="'+escPlain(_wnActive.title)+'" placeholder="예: 개발진흥지구 관련 헷갈림" style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:15px;font-weight:600;margin-bottom:16px;box-sizing:border-box">';
+  h+='<label style="display:block;font-size:12px;font-weight:700;color:#2563eb;margin-bottom:6px">&#x1F4A1; 요점정리 (선택, 자유 작성)</label>';
+  h+='<div style="display:flex;gap:6px;margin-bottom:6px">';
+  h+='<button type="button" onclick="wrapTextareaSelection(\'wnSummary\',\'**\',\'**\')" style="padding:4px 10px;border:1.5px solid #e2e8f0;border-radius:6px;background:#f8fafc;font-size:12px;font-weight:700;cursor:pointer">B 굵게</button>';
+  h+='<button type="button" onclick="wrapTextareaSelection(\'wnSummary\',\'==\',\'==\')" style="padding:4px 10px;border:1.5px solid #fde68a;border-radius:6px;background:#fffbeb;font-size:12px;font-weight:700;cursor:pointer;color:#92400e">&#x1F58D;&#xFE0F; 하이라이트</button>';
+  h+='<button type="button" onclick="wrapTextareaSelection(\'wnSummary\',\'!!\',\'!!\')" style="padding:4px 10px;border:1.5px solid #fecaca;border-radius:6px;background:#fef2f2;font-size:12px;font-weight:700;cursor:pointer;color:#ef4444">빨간글씨</button>';
+  h+='<button type="button" onclick="insertAtCursor(\'wnSummary\',\'→ \')" style="padding:4px 10px;border:1.5px solid #e2e8f0;border-radius:6px;background:#f8fafc;font-size:12px;font-weight:700;cursor:pointer">→ 화살표</button>';
+  h+='<button type="button" onclick="toggleNoteHeader(\'wnSummary\')" style="padding:4px 10px;border:1.5px solid #bfdbfe;border-radius:6px;background:#eff6ff;font-size:12px;font-weight:700;cursor:pointer;color:#2563eb">H 헤더</button>';
+  h+='</div>';
+  h+='<div style="font-size:11px;color:#94a3b8;margin-bottom:6px">💡 헤더는 커서가 있는 줄 전체에 적용돼요</div>';
+  h+='<textarea id="wnSummary" oninput="updateWnPreview(\'wnSummary\')" placeholder="지문과 별개로 자유롭게 정리해보세요. 줄바꿈해도 지문처럼 버튼으로 나뉘지 않아요" style="width:100%;min-height:140px;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;line-height:1.75;resize:vertical;box-sizing:border-box;font-family:inherit;margin-bottom:8px">'+escPlain(_wnActive.summary)+'</textarea>';
+  h+='<div id="wnSummaryPreview" style="margin-bottom:20px;padding:10px 12px;background:#fff;border:1px dashed #e2e8f0;border-radius:8px;font-size:14px;line-height:1.75;color:#1e293b">'+(_wnActive.summary?renderNoteText(_wnActive.summary):'<span style="color:#cbd5e1">미리보기가 여기 표시돼요</span>')+'</div>';
   h+='<label style="display:block;font-size:12px;font-weight:700;color:#2563eb;margin-bottom:8px">지문</label>';
   _wnActive.items.forEach(function(it,i){
     h+='<div style="border:1.5px solid #e2e8f0;border-radius:10px;padding:12px;margin-bottom:10px;background:#f8fafc">';
@@ -859,17 +871,6 @@ function renderWnForm(){
     h+='</div>';
   });
   h+='<button type="button" onclick="addWnItem()" style="width:100%;padding:10px;background:#eff6ff;color:#2563eb;border:1.5px dashed #93c5fd;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:20px">&#x2795; 지문 추가</button>';
-  h+='<label style="display:block;font-size:12px;font-weight:700;color:#2563eb;margin-bottom:6px">&#x1F4A1; 요점정리 (선택, 자유 작성)</label>';
-  h+='<div style="display:flex;gap:6px;margin-bottom:6px">';
-  h+='<button type="button" onclick="wrapTextareaSelection(\'wnSummary\',\'**\',\'**\')" style="padding:4px 10px;border:1.5px solid #e2e8f0;border-radius:6px;background:#f8fafc;font-size:12px;font-weight:700;cursor:pointer">B 굵게</button>';
-  h+='<button type="button" onclick="wrapTextareaSelection(\'wnSummary\',\'==\',\'==\')" style="padding:4px 10px;border:1.5px solid #fde68a;border-radius:6px;background:#fffbeb;font-size:12px;font-weight:700;cursor:pointer;color:#92400e">&#x1F58D;&#xFE0F; 하이라이트</button>';
-  h+='<button type="button" onclick="wrapTextareaSelection(\'wnSummary\',\'!!\',\'!!\')" style="padding:4px 10px;border:1.5px solid #fecaca;border-radius:6px;background:#fef2f2;font-size:12px;font-weight:700;cursor:pointer;color:#ef4444">빨간글씨</button>';
-  h+='<button type="button" onclick="insertAtCursor(\'wnSummary\',\'→ \')" style="padding:4px 10px;border:1.5px solid #e2e8f0;border-radius:6px;background:#f8fafc;font-size:12px;font-weight:700;cursor:pointer">→ 화살표</button>';
-  h+='<button type="button" onclick="toggleNoteHeader(\'wnSummary\')" style="padding:4px 10px;border:1.5px solid #bfdbfe;border-radius:6px;background:#eff6ff;font-size:12px;font-weight:700;cursor:pointer;color:#2563eb">H 헤더</button>';
-  h+='</div>';
-  h+='<div style="font-size:11px;color:#94a3b8;margin-bottom:6px">💡 헤더는 커서가 있는 줄 전체에 적용돼요</div>';
-  h+='<textarea id="wnSummary" oninput="updateWnPreview(\'wnSummary\')" placeholder="지문과 별개로 자유롭게 정리해보세요. 줄바꿈해도 지문처럼 버튼으로 나뉘지 않아요" style="width:100%;min-height:140px;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;line-height:1.75;resize:vertical;box-sizing:border-box;font-family:inherit;margin-bottom:8px">'+escPlain(_wnActive.summary)+'</textarea>';
-  h+='<div id="wnSummaryPreview" style="margin-bottom:16px;padding:10px 12px;background:#fff;border:1px dashed #e2e8f0;border-radius:8px;font-size:14px;line-height:1.75;color:#1e293b">'+(_wnActive.summary?renderNoteText(_wnActive.summary):'<span style="color:#cbd5e1">미리보기가 여기 표시돼요</span>')+'</div>';
   h+='<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:6px">';
   h+='<div style="flex:1;min-width:160px">';
   h+='<label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:6px">출처 (선택)</label>';
@@ -910,7 +911,12 @@ function saveWrongNote(){
   }
   saveWrongNotesLocal();
   if(_supa&&_user){
-    _supa.from('wrong_notes').upsert({id:id,user_id:_user.id,subject:subject,title:title,items:items,summary:summary,source:source,tags:tags.join(','),starred:entry.starred,mastered:entry.mastered,order_idx:order},{onConflict:'id'}).then(function(){});
+    _supa.from('wrong_notes').upsert({id:id,user_id:_user.id,subject:subject,title:title,items:items,summary:summary,source:source,tags:tags.join(','),starred:entry.starred,mastered:entry.mastered,order_idx:order},{onConflict:'id'}).then(function(r){
+      if(r.error){
+        console.error('핵심노트 클라우드 저장 실패:',r.error);
+        alert('⚠️ 이 기기에는 저장됐지만 클라우드 저장에는 실패했어요. 다른 기기와 동기화가 안 될 수 있어요.\n(오류: '+(r.error.message||r.error.code||'알 수 없음')+')\nSupabase에 summary/order_idx 컬럼이 추가됐는지 확인해주세요.');
+      }
+    });
   }
   showWrongNoteList();
 }
