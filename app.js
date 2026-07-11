@@ -862,6 +862,8 @@ function renderWnForm(){
     h+='<div style="display:flex;gap:8px;align-items:center">';
     h+='<button type="button" onclick="wrapTextareaSelection(\'wnItemText'+i+'\',\'**\',\'**\')" style="padding:2px 8px;border:1.5px solid #e2e8f0;border-radius:6px;background:#fff;font-size:11px;font-weight:700;cursor:pointer">B</button>';
     h+='<button type="button" onclick="wrapTextareaSelection(\'wnItemText'+i+'\',\'==\',\'==\')" style="padding:2px 8px;border:1.5px solid #fde68a;border-radius:6px;background:#fffbeb;font-size:11px;font-weight:700;cursor:pointer;color:#92400e">&#x1F58D;&#xFE0F;</button>';
+    h+='<button type="button" onclick="insertAtCursor(\'wnItemText'+i+'\',\'m\\u00b2\')" style="padding:2px 8px;border:1.5px solid #e2e8f0;border-radius:6px;background:#fff;font-size:11px;font-weight:700;cursor:pointer">m&#xB2;</button>';
+    h+='<button type="button" onclick="insertAtCursor(\'wnItemText'+i+'\',\'\\u00b7\')" style="padding:2px 8px;border:1.5px solid #e2e8f0;border-radius:6px;background:#fff;font-size:11px;font-weight:700;cursor:pointer">&#xB7;</button>';
     if(_wnActive.items.length>1)h+='<button type="button" onclick="removeWnItem('+i+')" style="background:none;border:none;color:#cbd5e1;cursor:pointer;font-size:14px">✕</button>';
     h+='</div></div>';
     h+='<textarea id="wnItemText'+i+'" oninput="updateWnPreview(\'wnItemText'+i+'\')" placeholder="지문/문장을 입력하세요" style="width:100%;min-height:60px;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13.5px;line-height:1.6;resize:vertical;box-sizing:border-box;font-family:inherit;margin-bottom:6px;background:#fff">'+escPlain(it.text)+'</textarea>';
