@@ -33,10 +33,19 @@ function loadJijunCustomSections(){try{_jijunCustomSections=JSON.parse(localStor
 function saveJijunCustomSections(){try{localStorage.setItem('gh_jijun_cs',JSON.stringify(_jijunCustomSections));}catch(e){}}
 function loadJijunSubSections(){try{_jijunSubSections=JSON.parse(localStorage.getItem('gh_jijun_ss')||'{}');}catch(e){_jijunSubSections={};}}
 function saveJijunSubSections(){try{localStorage.setItem('gh_jijun_ss',JSON.stringify(_jijunSubSections));}catch(e){}}
-loadJijunOverrides();loadJijunCustomItems();loadJijunCustomSections();loadJijunSubSections();
+var _jijunItemGroups={};
+function loadJijunItemGroups(){try{_jijunItemGroups=JSON.parse(localStorage.getItem('gh_jijun_ig')||'{}');}catch(e){_jijunItemGroups={};}}
+function saveJijunItemGroups(){try{localStorage.setItem('gh_jijun_ig',JSON.stringify(_jijunItemGroups));}catch(e){}}
+loadJijunOverrides();loadJijunCustomItems();loadJijunCustomSections();loadJijunSubSections();loadJijunItemGroups();
+function assignJijunItemGroup(key,groupId){
+  if(groupId){_jijunItemGroups[key]=groupId;}else{delete _jijunItemGroups[key];}
+  saveJijunItemGroups();
+  saveJijunCustomToSupa();
+  showJijun();
+}
 function saveJijunCustomToSupa(){
   if(!_supa||!_user)return;
-  _supa.from('jijun_custom').upsert({user_id:_user.id,overrides:_jijunOverrides,custom_items:_jijunCustomItems,custom_sections:_jijunCustomSections,sub_sections:_jijunSubSections,checked:_jijunChecked,updated_at:new Date().toISOString()},{onConflict:'user_id'}).then(function(){});
+  _supa.from('jijun_custom').upsert({user_id:_user.id,overrides:_jijunOverrides,custom_items:_jijunCustomItems,custom_sections:_jijunCustomSections,sub_sections:_jijunSubSections,item_groups:_jijunItemGroups,checked:_jijunChecked,updated_at:new Date().toISOString()},{onConflict:'user_id'}).then(function(){});
 }
 function loadJijunCustomFromSupa(){
   if(!_supa||!_user)return;
@@ -47,8 +56,9 @@ function loadJijunCustomFromSupa(){
     _jijunCustomItems=r.custom_items||{};
     _jijunCustomSections=r.custom_sections||{};
     _jijunSubSections=r.sub_sections||{};
+    if(r.item_groups)_jijunItemGroups=r.item_groups;
     if(r.checked)_jijunChecked=r.checked;
-    saveJijunOverrides();saveJijunCustomItems();saveJijunCustomSections();saveJijunSubSections();saveJijunChecked();
+    saveJijunOverrides();saveJijunCustomItems();saveJijunCustomSections();saveJijunSubSections();saveJijunItemGroups();saveJijunChecked();
     if(_navMode==='jijun')showJijun();
   });
 }
@@ -126,6 +136,8 @@ function deleteJijunSubSection(sectionKey,groupId){
   saveJijunSubSections();
   (_jijunCustomItems[sectionKey]||[]).forEach(function(it){if(it.groupId===groupId)delete it.groupId;});
   saveJijunCustomItems();
+  Object.keys(_jijunItemGroups).forEach(function(k){if(k.indexOf(sectionKey+'_')===0&&_jijunItemGroups[k]===groupId)delete _jijunItemGroups[k];});
+  saveJijunItemGroups();
   saveJijunCustomToSupa();
   showJijun();
 }
@@ -162,6 +174,28 @@ function renderJijunCustomItemRow(ci,sectionKey,subjName){
   if(_jijunEditMode){
     h+='<button onclick="editJijunCustomItem(\''+sectionKey+'\','+ci.id+',event)" style="flex-shrink:0;background:none;border:none;cursor:pointer;font-size:13px;color:#94a3b8;padding:0 2px">✏️</button>';
     h+='<button onclick="deleteJijunCustomItem(\''+sectionKey+'\','+ci.id+',event)" style="flex-shrink:0;background:none;border:none;cursor:pointer;font-size:13px;color:#cbd5e1;padding:0 2px">✕</button>';
+  }
+  if(_jijunBlankMode&&_jijunCustomBlanks[k]&&_jijunCustomBlanks[k].length)h+='<button onclick="resetItemBlanks(\''+k+'\',event)" title="이 지문만 빈칸 초기화" style="flex-shrink:0;background:none;border:none;cursor:pointer;font-size:12px;color:#0369a1;padding:0 2px">↺</button>';
+  h+='</div>';
+  return h;
+}
+function renderJijunBuiltinItemRow(item,k,subjName,subSecs){
+  var checked=!!_jijunChecked[k];
+  var overridden=_jijunOverrides[k]!==undefined;
+  var baseText=overridden?_jijunOverrides[k]:item.text;
+  var textHtml=_jijunBlankMode?makeBlankHtml(baseText,k):memoEsc(baseText,subjName,false,k);
+  var h='<div data-qkey="'+k+'" style="display:flex;align-items:flex-start;gap:6px;padding:10px 16px;border-bottom:1px solid #f1f5f9;font-size:13px;line-height:1.7;color:#374151">';
+  h+='<button id="jc_'+k+'" onclick="toggleJijunCheck(\''+k+'\')" style="flex-shrink:0;background:none;border:none;font-size:18px;cursor:pointer;color:'+(checked?'#f59e0b':'#cbd5e1')+';padding:0;margin-top:1px;line-height:1">'+(checked?'★':'☆')+'</button>';
+  h+='<span style="flex-shrink:0;font-weight:700;color:#2563eb;min-width:20px">'+item.num+'.</span>';
+  h+='<span style="flex:1">'+textHtml+'</span>';
+  if(_jijunEditMode){
+    h+='<button onclick="editJijunItem(\''+k+'\')" style="flex-shrink:0;background:none;border:none;cursor:pointer;font-size:13px;color:#94a3b8;padding:0 2px">✏️</button>';
+    if(subSecs&&subSecs.length){
+      h+='<select onchange="assignJijunItemGroup(\''+k+'\',this.value)" style="font-size:10.5px;padding:2px 3px;border:1px solid #e2e8f0;border-radius:6px;background:#fff;flex-shrink:0;max-width:88px">';
+      h+='<option value="">소분류...</option>';
+      subSecs.forEach(function(g){h+='<option value="'+g.id+'"'+(_jijunItemGroups[k]===g.id?' selected':'')+'>'+esc(g.name)+'</option>';});
+      h+='</select>';
+    }
   }
   if(_jijunBlankMode&&_jijunCustomBlanks[k]&&_jijunCustomBlanks[k].length)h+='<button onclick="resetItemBlanks(\''+k+'\',event)" title="이 지문만 빈칸 초기화" style="flex-shrink:0;background:none;border:none;cursor:pointer;font-size:12px;color:#0369a1;padding:0 2px">↺</button>';
   h+='</div>';
@@ -453,7 +487,7 @@ function deleteMemo(ts){
   if(_supa&&_user){_supa.from('memos').delete().eq('user_id',_user.id).eq('ts',ts).then(function(){});}
   showMemoList();
 }
-// ── 나만의 오답노트 (자유 기록형) ──────────────────
+// ── 핵심노트 (자유 기록형 나만의 오답노트) ──────────────────
 var _wnExpanded={};var _wnStarredOnly=false;var _wnShowMastered=false;
 function loadWrongNotes(){
   try{
@@ -462,6 +496,7 @@ function loadWrongNotes(){
       if(!Array.isArray(n.tags))n.tags=(n.tags?(''+n.tags).split(','):[]).filter(Boolean);
       if(!Array.isArray(n.items))n.items=migrateWnItems(n.content,n.whyWrong);
       if(typeof n.summary!=='string')n.summary='';
+      if(n.order===undefined)n.order=n.id;
     });
   }catch(e){_wrongNotes=[];}
 }
@@ -472,11 +507,27 @@ function migrateWnItems(content,whyWrong){
 }
 function saveWrongNotesLocal(){try{localStorage.setItem('gh_wrongnote',JSON.stringify(_wrongNotes));}catch(e){}}
 function escPlain(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-function renderNoteText(s){
-  var h=esc(s||'');
+function renderNoteInline(s){
+  var h=esc(s);
   h=h.replace(/\*\*(.+?)\*\*/g,'<b>$1</b>');
   h=h.replace(/==(.+?)==/g,'<mark style="background:#fef3c7;padding:0 3px;border-radius:3px">$1</mark>');
+  h=h.replace(/!!(.+?)!!/g,'<span style="color:#ef4444;font-weight:700">$1</span>');
   return h;
+}
+function renderNoteText(s){
+  var lines=(s||'').split('\n');
+  var out='';
+  lines.forEach(function(line,i){
+    var isHeader=/^#\s+/.test(line);
+    var content=isHeader?line.replace(/^#\s+/,''):line;
+    var h=renderNoteInline(content);
+    if(isHeader){
+      out+='<div style="font-size:15px;font-weight:800;color:#1e293b;margin:'+(i===0?'0':'12px')+' 0 4px">'+h+'</div>';
+    }else{
+      out+=h+(i<lines.length-1?'<br>':'');
+    }
+  });
+  return out;
 }
 function renderNoteItems(items){
   if(!items||!items.length)return '';
@@ -509,6 +560,32 @@ function updateWnPreview(id){
   if(!ta||!prev)return;
   prev.innerHTML=ta.value?renderNoteText(ta.value):'<span style="color:#cbd5e1">미리보기가 여기 표시돼요</span>';
 }
+function insertAtCursor(id,text){
+  var ta=document.getElementById(id);
+  if(!ta)return;
+  var start=ta.selectionStart,end=ta.selectionEnd;
+  var val=ta.value;
+  ta.value=val.slice(0,start)+text+val.slice(end);
+  ta.focus();
+  ta.selectionStart=ta.selectionEnd=start+text.length;
+  updateWnPreview(id);
+}
+function toggleNoteHeader(id){
+  var ta=document.getElementById(id);
+  if(!ta)return;
+  var start=ta.selectionStart;
+  var val=ta.value;
+  var lineStart=val.lastIndexOf('\n',start-1)+1;
+  var lineEnd=val.indexOf('\n',start);
+  if(lineEnd===-1)lineEnd=val.length;
+  var line=val.slice(lineStart,lineEnd);
+  var newLine=/^#\s/.test(line)?line.replace(/^#\s*/,''):'# '+line;
+  ta.value=val.slice(0,lineStart)+newLine+val.slice(lineEnd);
+  ta.focus();
+  var diff=newLine.length-line.length;
+  ta.selectionStart=ta.selectionEnd=Math.max(lineStart,start+diff);
+  updateWnPreview(id);
+}
 function loadWrongNotesFromSupa(){
   if(!_supa||!_user)return;
   _supa.from('wrong_notes').select('*').eq('user_id',_user.id).then(function(result){
@@ -519,7 +596,8 @@ function loadWrongNotesFromSupa(){
       if(!Array.isArray(items)||!items.length)items=migrateWnItems(r.content,r.why_wrong);
       return {
         id:r.id,subject:r.subject||'',title:r.title||'',items:items,summary:r.summary||'',source:r.source||'',
-        tags:(r.tags?(''+r.tags).split(','):[]).filter(Boolean),starred:!!r.starred,mastered:!!r.mastered
+        tags:(r.tags?(''+r.tags).split(','):[]).filter(Boolean),starred:!!r.starred,mastered:!!r.mastered,
+        order:(r.order_idx!==undefined&&r.order_idx!==null)?r.order_idx:r.id
       };
     });
     var merged={};
@@ -529,7 +607,7 @@ function loadWrongNotesFromSupa(){
     var supaIdSet={};result.data.forEach(function(r){supaIdSet[r.id]=true;});
     _wrongNotes.forEach(function(n){
       if(!supaIdSet[n.id]){
-        _supa.from('wrong_notes').insert({id:n.id,user_id:_user.id,subject:n.subject||'',title:n.title||'',items:n.items||[],summary:n.summary||'',source:n.source||'',tags:(n.tags||[]).join(','),starred:!!n.starred,mastered:!!n.mastered}).then(function(){});
+        _supa.from('wrong_notes').insert({id:n.id,user_id:_user.id,subject:n.subject||'',title:n.title||'',items:n.items||[],summary:n.summary||'',source:n.source||'',tags:(n.tags||[]).join(','),starred:!!n.starred,mastered:!!n.mastered,order_idx:n.order!==undefined?n.order:n.id}).then(function(){});
       }
     });
     saveWrongNotesLocal();
@@ -559,12 +637,7 @@ function toggleWnMastered(id,ev){
   if(_supa&&_user){_supa.from('wrong_notes').update({mastered:n.mastered}).eq('user_id',_user.id).eq('id',id).then(function(){});}
   showWrongNoteList();
 }
-function showWrongNoteList(){
-  _navMode='wrongnote';_wnActive=null;
-  renderSidebar();
-  var subjs=[];var seen={};
-  _wrongNotes.forEach(function(n){if(n.subject&&!seen[n.subject]){seen[n.subject]=true;subjs.push(n.subject);}});
-  var masteredCount=_wrongNotes.filter(function(n){return n.mastered;}).length;
+function getWnFilteredList(){
   var list=_wrongNotes.filter(function(n){
     if(!_wnShowMastered&&n.mastered)return false;
     if(_wnFilter&&n.subject!==_wnFilter)return false;
@@ -578,7 +651,78 @@ function showWrongNoteList(){
     }
     return true;
   });
-  var h='<div class="page-header"><h1>&#x1F4D3; 나만의 오답노트</h1><p>내가 직접 정리하는 오답&middot;개념 노트 &middot; 총 '+_wrongNotes.length+'개</p></div>';
+  list.sort(function(a,b){return (a.order!==undefined?a.order:a.id)-(b.order!==undefined?b.order:b.id);});
+  return list;
+}
+function moveWnNote(id,dir,ev){
+  if(ev)ev.stopPropagation();
+  var list=getWnFilteredList();
+  var idx=list.findIndex(function(n){return n.id===id;});
+  var swapIdx=idx+dir;
+  if(idx<0||swapIdx<0||swapIdx>=list.length)return;
+  var a=list[idx],b=list[swapIdx];
+  var tmp=a.order!==undefined?a.order:a.id;
+  a.order=b.order!==undefined?b.order:b.id;
+  b.order=tmp;
+  saveWrongNotesLocal();
+  if(_supa&&_user){
+    _supa.from('wrong_notes').update({order_idx:a.order}).eq('user_id',_user.id).eq('id',a.id).then(function(){});
+    _supa.from('wrong_notes').update({order_idx:b.order}).eq('user_id',_user.id).eq('id',b.id).then(function(){});
+  }
+  showWrongNoteList();
+}
+function exportWrongNotesPdf(){
+  var list=getWnFilteredList();
+  if(!list.length){alert('내보낼 핵심노트가 없어요.');return;}
+  var w=window.open('','_blank');
+  if(!w){alert('팝업이 차단됐어요. 이 사이트의 팝업을 허용해주세요.');return;}
+  var h='<!DOCTYPE html><html><head><meta charset="utf-8"><title>핵심노트</title>';
+  h+='<style>';
+  h+="body{font-family:'Noto Sans KR',sans-serif;padding:28px;color:#1e293b;max-width:760px;margin:0 auto}";
+  h+='h1{font-size:22px;margin-bottom:22px}';
+  h+='.note{border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin-bottom:16px;page-break-inside:avoid}';
+  h+='.subj{display:inline-block;font-size:11px;font-weight:700;color:#2563eb;background:#eff6ff;padding:2px 9px;border-radius:20px;margin-bottom:8px}';
+  h+='.mastered{font-size:11px;color:#16a34a;font-weight:700;margin-left:6px}';
+  h+='.title{font-size:16px;font-weight:800;margin:2px 0 10px}';
+  h+='.item{padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:6px;font-size:13px;line-height:1.6}';
+  h+='.reason{margin-top:4px;padding-top:4px;border-top:1px dashed #fecaca;font-size:12px;color:#ef4444}';
+  h+='.summary{margin-top:10px;font-size:13px;line-height:1.75;background:#f8fafc;border-radius:8px;padding:10px 12px}';
+  h+='.tags{margin-top:8px;font-size:11px;color:#7c3aed}';
+  h+='.src{margin-top:8px;font-size:11px;color:#94a3b8}';
+  h+='mark{background:#fef3c7;padding:0 3px;border-radius:3px}';
+  h+='@media print{.note{border-color:#ccc}}';
+  h+='</style></head><body>';
+  h+='<h1>&#x1F4D3; 핵심노트 (총 '+list.length+'개)</h1>';
+  list.forEach(function(n){
+    h+='<div class="note">';
+    if(n.subject)h+='<div class="subj">'+esc(n.subject)+'</div>';
+    h+='<div class="title">'+esc(n.title)+(n.mastered?'<span class="mastered">✅ 외운 노트</span>':'')+'</div>';
+    if(n.items&&n.items.length){
+      n.items.forEach(function(it){
+        if(!it.text)return;
+        h+='<div class="item">'+renderNoteText(it.text);
+        if(it.reason)h+='<div class="reason">&#x1F914; '+renderNoteText(it.reason)+'</div>';
+        h+='</div>';
+      });
+    }
+    if(n.summary)h+='<div class="summary">&#x1F4A1; '+renderNoteText(n.summary)+'</div>';
+    if(n.tags&&n.tags.length)h+='<div class="tags">'+n.tags.map(function(t){return '#'+esc(t);}).join(' ')+'</div>';
+    if(n.source)h+='<div class="src">'+esc(n.source)+'</div>';
+    h+='</div>';
+  });
+  h+='</body></html>';
+  w.document.write(h);
+  w.document.close();
+  setTimeout(function(){w.print();},300);
+}
+function showWrongNoteList(){
+  _navMode='wrongnote';_wnActive=null;
+  renderSidebar();
+  var subjs=[];var seen={};
+  _wrongNotes.forEach(function(n){if(n.subject&&!seen[n.subject]){seen[n.subject]=true;subjs.push(n.subject);}});
+  var masteredCount=_wrongNotes.filter(function(n){return n.mastered;}).length;
+  var list=getWnFilteredList();
+  var h='<div class="page-header"><h1>&#x1F4D3; 핵심노트</h1><p>내가 직접 정리하는 오답&middot;개념 노트 &middot; 총 '+_wrongNotes.length+'개</p></div>';
   h+='<div style="max-width:700px;margin:0 auto">';
   h+='<div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px;-webkit-overflow-scrolling:touch">';
   h+='<button class="filter-btn'+(!_wnFilter?' active':'')+'" style="flex-shrink:0;white-space:nowrap" onclick="setWnFilter(\'\')">전체 '+_wrongNotes.length+'</button>';
@@ -588,18 +732,19 @@ function showWrongNoteList(){
   });
   h+='</div>';
   h+='<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">';
-  h+='<button onclick="openWrongNoteForm(null)" style="padding:8px 16px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">&#x2795; 새 오답 추가'+(_wnFilter?' ('+esc(_wnFilter)+')':'')+'</button>';
+  h+='<button onclick="openWrongNoteForm(null)" style="padding:8px 16px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">&#x2795; 새 핵심노트 추가'+(_wnFilter?' ('+esc(_wnFilter)+')':'')+'</button>';
   h+='<button class="filter-btn'+(_wnStarredOnly?' active':'')+'" onclick="toggleWnStarredOnly()" style="'+(_wnStarredOnly?'background:#fffbeb;border-color:#f59e0b;color:#b45309':'')+'">&#x2B50; 즐겨찾기만</button>';
+  h+='<button onclick="exportWrongNotesPdf()" style="padding:8px 14px;background:#f8fafc;color:#475569;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap">&#x1F4C4; PDF로 저장</button>';
   h+='<input type="text" placeholder="&#x1F50D; 제목·내용·태그 검색..." value="'+escPlain(_wnSearch)+'" oninput="setWnSearch(this.value)" style="padding:7px 12px;border:1.5px solid #e2e8f0;border-radius:20px;font-size:13px;outline:none;flex:1;min-width:140px">';
   h+='</div>';
   if(masteredCount>0){
     h+='<div style="margin-bottom:14px"><button onclick="toggleWnShowMastered()" style="background:none;border:none;color:#16a34a;font-size:12.5px;font-weight:700;cursor:pointer;padding:0">'+(_wnShowMastered?'▲ 외운 노트 숨기기':'▼ 외운 노트 '+masteredCount+'개 더보기')+'</button></div>';
   }
   if(!list.length){
-    var emptyMsg=_wrongNotes.length?'해당하는 노트가 없어요!':'아직 작성한 오답노트가 없어요.<br>위 버튼으로 첫 노트를 만들어보세요!';
+    var emptyMsg=_wrongNotes.length?'해당하는 노트가 없어요!':'아직 작성한 핵심노트가 없어요.<br>위 버튼으로 첫 노트를 만들어보세요!';
     h+='<div class="empty"><div style="font-size:48px">&#x1F4D3;</div><p>'+emptyMsg+'</p></div>';
   }else{
-    list.forEach(function(n){
+    list.forEach(function(n,ni){
       var open=!!_wnExpanded[n.id];
       h+='<div style="background:#fff;border:1px solid '+(n.mastered?'#bbf7d0':'#e2e8f0')+';border-radius:14px;margin-bottom:12px;overflow:hidden">';
       h+='<div style="padding:15px 18px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px" onclick="toggleWnExpand('+n.id+')">';
@@ -609,7 +754,9 @@ function showWrongNoteList(){
       h+='<span style="font-size:15px;font-weight:700;color:#1e293b">'+esc(n.title)+'</span>';
       if(n.mastered)h+='<span style="font-size:11px;flex-shrink:0">✅</span>';
       h+='</div>';
-      h+='<div style="display:flex;gap:2px;flex-shrink:0">';
+      h+='<div style="display:flex;gap:0;flex-shrink:0;align-items:center">';
+      h+='<button onclick="moveWnNote('+n.id+',-1,event)" style="background:none;border:none;cursor:pointer;font-size:12px;padding:4px;color:'+(ni>0?'#94a3b8':'#e2e8f0')+'" '+(ni>0?'':'disabled')+'>▲</button>';
+      h+='<button onclick="moveWnNote('+n.id+',1,event)" style="background:none;border:none;cursor:pointer;font-size:12px;padding:4px;color:'+(ni<list.length-1?'#94a3b8':'#e2e8f0')+'" '+(ni<list.length-1?'':'disabled')+'>▼</button>';
       h+='<button onclick="toggleWnStar('+n.id+',event)" style="background:none;border:none;cursor:pointer;font-size:16px;padding:4px;color:'+(n.starred?'#f59e0b':'#cbd5e1')+'">'+(n.starred?'★':'☆')+'</button>';
       h+='<button onclick="event.stopPropagation();openWrongNoteForm('+n.id+')" style="background:none;border:none;cursor:pointer;font-size:14px;padding:4px;color:#94a3b8">✏️</button>';
       h+='<button onclick="event.stopPropagation();deleteWrongNote('+n.id+')" style="background:none;border:none;cursor:pointer;font-size:13px;padding:4px;color:#cbd5e1">✕</button>';
@@ -669,7 +816,7 @@ function removeWnItem(idx){
 function renderWnForm(){
   var nid=_wnActive.id;
   renderSidebar();
-  var h='<div class="page-header"><h1>'+(nid?'&#x270F;&#xFE0F; 오답노트 수정':'&#x270D;&#xFE0F; 새 오답노트')+'</h1></div>';
+  var h='<div class="page-header"><h1>'+(nid?'&#x270F;&#xFE0F; 핵심노트 수정':'&#x270D;&#xFE0F; 새 핵심노트')+'</h1></div>';
   h+='<div style="max-width:640px;margin:0 auto">';
   h+='<button onclick="showWrongNoteList()" style="margin-bottom:14px;padding:6px 14px;background:#f1f5f9;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">← 목록으로</button>';
   h+='<div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:22px">';
@@ -701,7 +848,11 @@ function renderWnForm(){
   h+='<div style="display:flex;gap:6px;margin-bottom:6px">';
   h+='<button type="button" onclick="wrapTextareaSelection(\'wnSummary\',\'**\',\'**\')" style="padding:4px 10px;border:1.5px solid #e2e8f0;border-radius:6px;background:#f8fafc;font-size:12px;font-weight:700;cursor:pointer">B 굵게</button>';
   h+='<button type="button" onclick="wrapTextareaSelection(\'wnSummary\',\'==\',\'==\')" style="padding:4px 10px;border:1.5px solid #fde68a;border-radius:6px;background:#fffbeb;font-size:12px;font-weight:700;cursor:pointer;color:#92400e">&#x1F58D;&#xFE0F; 하이라이트</button>';
+  h+='<button type="button" onclick="wrapTextareaSelection(\'wnSummary\',\'!!\',\'!!\')" style="padding:4px 10px;border:1.5px solid #fecaca;border-radius:6px;background:#fef2f2;font-size:12px;font-weight:700;cursor:pointer;color:#ef4444">빨간글씨</button>';
+  h+='<button type="button" onclick="insertAtCursor(\'wnSummary\',\'→ \')" style="padding:4px 10px;border:1.5px solid #e2e8f0;border-radius:6px;background:#f8fafc;font-size:12px;font-weight:700;cursor:pointer">→ 화살표</button>';
+  h+='<button type="button" onclick="toggleNoteHeader(\'wnSummary\')" style="padding:4px 10px;border:1.5px solid #bfdbfe;border-radius:6px;background:#eff6ff;font-size:12px;font-weight:700;cursor:pointer;color:#2563eb">H 헤더</button>';
   h+='</div>';
+  h+='<div style="font-size:11px;color:#94a3b8;margin-bottom:6px">💡 헤더는 커서가 있는 줄 전체에 적용돼요</div>';
   h+='<textarea id="wnSummary" oninput="updateWnPreview(\'wnSummary\')" placeholder="지문과 별개로 자유롭게 정리해보세요. 줄바꿈해도 지문처럼 버튼으로 나뉘지 않아요" style="width:100%;min-height:140px;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;line-height:1.75;resize:vertical;box-sizing:border-box;font-family:inherit;margin-bottom:8px">'+escPlain(_wnActive.summary)+'</textarea>';
   h+='<div id="wnSummaryPreview" style="margin-bottom:16px;padding:10px 12px;background:#fff;border:1px dashed #e2e8f0;border-radius:8px;font-size:14px;line-height:1.75;color:#1e293b">'+(_wnActive.summary?renderNoteText(_wnActive.summary):'<span style="color:#cbd5e1">미리보기가 여기 표시돼요</span>')+'</div>';
   h+='<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:6px">';
@@ -734,7 +885,8 @@ function saveWrongNote(){
   var isNew=!_wnActive.id;
   var id=_wnActive.id||Date.now();
   var prev=isNew?{}:(_wrongNotes.find(function(x){return x.id===id;})||{});
-  var entry={id:id,subject:subject,title:title,items:items,summary:summary,source:source,tags:tags,starred:!!prev.starred,mastered:!!prev.mastered};
+  var order=prev.order!==undefined?prev.order:id;
+  var entry={id:id,subject:subject,title:title,items:items,summary:summary,source:source,tags:tags,starred:!!prev.starred,mastered:!!prev.mastered,order:order};
   if(isNew){
     _wrongNotes.unshift(entry);
   }else{
@@ -743,12 +895,12 @@ function saveWrongNote(){
   }
   saveWrongNotesLocal();
   if(_supa&&_user){
-    _supa.from('wrong_notes').upsert({id:id,user_id:_user.id,subject:subject,title:title,items:items,summary:summary,source:source,tags:tags.join(','),starred:entry.starred,mastered:entry.mastered},{onConflict:'id'}).then(function(){});
+    _supa.from('wrong_notes').upsert({id:id,user_id:_user.id,subject:subject,title:title,items:items,summary:summary,source:source,tags:tags.join(','),starred:entry.starred,mastered:entry.mastered,order_idx:order},{onConflict:'id'}).then(function(){});
   }
   showWrongNoteList();
 }
 function deleteWrongNote(id){
-  if(!confirm('이 오답노트를 삭제할까요?'))return;
+  if(!confirm('이 핵심노트를 삭제할까요?'))return;
   var idx=_wrongNotes.findIndex(function(x){return x.id===id;});
   if(idx>=0)_wrongNotes.splice(idx,1);
   saveWrongNotesLocal();
@@ -1130,7 +1282,7 @@ function showJijun(){
   if(_jijunBlankMode){h+='<button onclick="resetBlanks()" style="padding:5px 12px;border-radius:20px;font-size:12px;cursor:pointer;background:#e0f2fe;color:#0369a1;border:1.5px solid #7dd3fc">↺ 빈칸 초기화</button>';}
   h+='<button class="filter-btn'+(_jijunEditMode?' active':'')+'" onclick="toggleJijunEditMode()" style="'+(_jijunEditMode?'background:#faf5ff;border-color:#c4b5fd;color:#7c3aed':'')+'">&#x1F4DD; 지문 추가/수정'+((_jijunEditMode?' ON':''))+'</button>';
   if(_jijunBlankMode){h+='<div style="width:100%;font-size:11px;color:#94a3b8;padding:2px 4px">💡 숫자·법령명은 자동 빈칸 &nbsp;|&nbsp; 단어 클릭 → 직접 빈칸 추가/해제 &nbsp;|&nbsp; ↺ 아이콘으로 지문별 초기화</div>';}
-  if(_jijunEditMode){h+='<div style="width:100%;font-size:11px;color:#94a3b8;padding:2px 4px">💡 ✏️로 기존 지문 수정, 각 편 하단 버튼으로 지문/소분류 추가, 맨 아래 버튼으로 대분류(편) 추가</div>';}
+  if(_jijunEditMode){h+='<div style="width:100%;font-size:11px;color:#94a3b8;padding:2px 4px">💡 ✏️로 기존 지문 수정, 지문 옆 드롭다운으로 소분류에 배정, 각 편 하단 버튼으로 지문/소분류 추가, 맨 아래 버튼으로 대분류(편) 추가</div>';}
   h+='</div>';
   h+='<div style="font-size:11px;color:#94a3b8;padding:2px 4px 10px">💡 문장을 드래그해서 선택하면 메모장에 저장할 수 있어요</div>';
   h+='<div id="jijunBody" onmouseup="checkTextSelection()">';
@@ -1150,32 +1302,35 @@ function showJijun(){
     h+='<div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;margin-bottom:20px;overflow:hidden">';
     h+='<div style="padding:14px 20px;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-size:14px;font-weight:700;color:#1e293b">'+esc(sec.section)+'</div>';
     h+='<div style="padding:4px 0">';
-    visibleItems.forEach(function(item){
+    var ungroupedItems=visibleItems.filter(function(item){
       var k=_jijunSubj+'_'+sidx+'_'+item.num;
-      var checked=!!_jijunChecked[k];
-      var overridden=_jijunOverrides[k]!==undefined;
-      var baseText=overridden?_jijunOverrides[k]:item.text;
-      var textHtml=_jijunBlankMode?makeBlankHtml(baseText,k):memoEsc(baseText,subj.subject,false,k);
-      h+='<div data-qkey="'+k+'" style="display:flex;align-items:flex-start;gap:6px;padding:10px 16px;border-bottom:1px solid #f1f5f9;font-size:13px;line-height:1.7;color:#374151">';
-      h+='<button id="jc_'+k+'" onclick="toggleJijunCheck(\''+k+'\')" style="flex-shrink:0;background:none;border:none;font-size:18px;cursor:pointer;color:'+(checked?'#f59e0b':'#cbd5e1')+';padding:0;margin-top:1px;line-height:1">'+(checked?'★':'☆')+'</button>';
-      h+='<span style="flex-shrink:0;font-weight:700;color:#2563eb;min-width:20px">'+item.num+'.</span>';
-      h+='<span style="flex:1">'+textHtml+'</span>';
-      if(_jijunEditMode)h+='<button onclick="editJijunItem(\''+k+'\')" style="flex-shrink:0;background:none;border:none;cursor:pointer;font-size:13px;color:#94a3b8;padding:0 2px">✏️</button>';
-      if(_jijunBlankMode&&_jijunCustomBlanks[k]&&_jijunCustomBlanks[k].length)h+='<button onclick="resetItemBlanks(\''+k+'\',event)" title="이 지문만 빈칸 초기화" style="flex-shrink:0;background:none;border:none;cursor:pointer;font-size:12px;color:#0369a1;padding:0 2px">↺</button>';
-      h+='</div>';
+      var gid=_jijunItemGroups[k];
+      return !gid||!subSecs.some(function(g){return g.id===gid;});
+    });
+    ungroupedItems.forEach(function(item){
+      var k=_jijunSubj+'_'+sidx+'_'+item.num;
+      h+=renderJijunBuiltinItemRow(item,k,subj.subject,subSecs);
     });
     var ungroupedCustom=visibleCustom.filter(function(ci){return !ci.groupId;});
     ungroupedCustom.forEach(function(ci){h+=renderJijunCustomItemRow(ci,sectionKey,subj.subject);});
     if(_jijunEditMode)h+='<div style="padding:8px 16px"><button onclick="addJijunCustomItem(\''+sectionKey+'\',null)" style="padding:5px 12px;background:#eff6ff;color:#2563eb;border:1.5px dashed #93c5fd;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#x2795; 지문 추가</button></div>';
     subSecs.forEach(function(g){
-      var groupItems=visibleCustom.filter(function(ci){return ci.groupId===g.id;});
-      if(!groupItems.length&&!_jijunEditMode)return;
+      var groupBuiltins=visibleItems.filter(function(item){
+        var k=_jijunSubj+'_'+sidx+'_'+item.num;
+        return _jijunItemGroups[k]===g.id;
+      });
+      var groupCustom=visibleCustom.filter(function(ci){return ci.groupId===g.id;});
+      if(!groupBuiltins.length&&!groupCustom.length&&!_jijunEditMode)return;
       h+='<div style="margin:6px 12px 10px;border:1.5px dashed #ddd6fe;border-radius:10px;overflow:hidden">';
       h+='<div style="padding:8px 14px;background:#faf5ff;font-size:12px;font-weight:700;color:#7c3aed;display:flex;justify-content:space-between;align-items:center">';
       h+='<span>&#x1F4CC; '+esc(g.name)+'</span>';
       if(_jijunEditMode)h+='<button onclick="deleteJijunSubSection(\''+sectionKey+'\','+g.id+')" style="background:none;border:none;color:#c4b5fd;cursor:pointer;font-size:12px">✕</button>';
       h+='</div>';
-      groupItems.forEach(function(ci){h+=renderJijunCustomItemRow(ci,sectionKey,subj.subject);});
+      groupBuiltins.forEach(function(item){
+        var k=_jijunSubj+'_'+sidx+'_'+item.num;
+        h+=renderJijunBuiltinItemRow(item,k,subj.subject,subSecs);
+      });
+      groupCustom.forEach(function(ci){h+=renderJijunCustomItemRow(ci,sectionKey,subj.subject);});
       if(_jijunEditMode)h+='<div style="padding:6px 14px"><button onclick="addJijunCustomItem(\''+sectionKey+'\','+g.id+')" style="padding:4px 10px;background:#fff;color:#7c3aed;border:1.5px dashed #ddd6fe;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">&#x2795; 이 소분류에 지문 추가</button></div>';
       h+='</div>';
     });
@@ -1272,7 +1427,7 @@ function renderSidebar(){
     var h='<div class="sidebar-close-btn" onclick="closeMenu()"><span style="font-size:20px">✕</span> 닫기</div>';
     h+='<div class="sidebar-section"><div class="sidebar-item" onclick="navTabExam()" style="color:#64748b;font-size:12px">← 기출문제로</div>';
     h+='<div class="sidebar-item" onclick="showMemoList();closeMenu()">&#x1F4DD; 메모장'+(_memos.length?'<span class="sidebar-badge" style="background:#f59e0b">'+_memos.length+'</span>':'')+'</div>';
-    h+='<div class="sidebar-item" onclick="showWrongNoteList();closeMenu()">&#x1F4D3; 나만의 오답노트'+(_wrongNotes.length?'<span class="sidebar-badge" style="background:#7c3aed">'+_wrongNotes.length+'</span>':'')+'</div></div>';
+    h+='<div class="sidebar-item" onclick="showWrongNoteList();closeMenu()">&#x1F4D3; 핵심노트'+(_wrongNotes.length?'<span class="sidebar-badge" style="background:#7c3aed">'+_wrongNotes.length+'</span>':'')+'</div></div>';
     h+='<div class="sidebar-section"><span class="sidebar-label">기출지문</span>';
     if(typeof _jijunData!=='undefined'&&_jijunData){
       _jijunData.forEach(function(subj,i){
@@ -1309,7 +1464,7 @@ function renderSidebar(){
   h+='</div><hr class="sidebar-divider"><div class="sidebar-section">';
   h+='<div class="sidebar-item" onclick="openMix();closeMenu()">&#x1F500; 섞어풀기</div>';
   h+='<div class="sidebar-item" onclick="showWrong();closeMenu()">📕 오답노트'+(w>0?'<span class="sidebar-badge">'+w+'</span>':'')+'</div>';
-  h+='<div class="sidebar-item" onclick="showWrongNoteList();closeMenu()">&#x1F4D3; 나만의 오답노트'+(_wrongNotes.length?'<span class="sidebar-badge" style="background:#7c3aed">'+_wrongNotes.length+'</span>':'')+'</div>';
+  h+='<div class="sidebar-item" onclick="showWrongNoteList();closeMenu()">&#x1F4D3; 핵심노트'+(_wrongNotes.length?'<span class="sidebar-badge" style="background:#7c3aed">'+_wrongNotes.length+'</span>':'')+'</div>';
   h+='<div class="sidebar-item" onclick="showStats()">📊 내 통계</div>';
   h+='<div class="sidebar-item" onclick="showPdf();closeMenu()">📥 PDF 다운로드</div>';
   h+='<div class="sidebar-item" onclick="navTabJijun()">📋 기출지문</div>';
