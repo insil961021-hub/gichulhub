@@ -15,6 +15,7 @@ loadJijunChecked();
 function toggleJijunCheck(key){
   if(_jijunChecked[key]){delete _jijunChecked[key];}else{_jijunChecked[key]=true;}
   saveJijunChecked();
+  saveJijunCustomToSupa();
   var btn=document.getElementById('jc_'+key);
   if(btn){btn.innerHTML=_jijunChecked[key]?'★':'☆';btn.style.color=_jijunChecked[key]?'#f59e0b':'#cbd5e1';}
 }
@@ -22,15 +23,35 @@ var _jijunCustomBlanks={};
 function loadJijunCustom(){try{_jijunCustomBlanks=JSON.parse(localStorage.getItem('gh_jijun_custom')||'{}');}catch(e){_jijunCustomBlanks={};}}
 function saveJijunCustom(){try{localStorage.setItem('gh_jijun_custom',JSON.stringify(_jijunCustomBlanks));}catch(e){}}
 loadJijunCustom();
-// ── 기출지문 지문 추가/수정 + 커스텀 카테고리 ──────────────────
-var _jijunOverrides={};var _jijunCustomItems={};var _jijunCustomSections={};var _jijunEditMode=false;
+// ── 기출지문 지문 추가/수정 + 커스텀 카테고리(소분류) ──────────────────
+var _jijunOverrides={};var _jijunCustomItems={};var _jijunCustomSections={};var _jijunSubSections={};var _jijunEditMode=false;
 function loadJijunOverrides(){try{_jijunOverrides=JSON.parse(localStorage.getItem('gh_jijun_ov')||'{}');}catch(e){_jijunOverrides={};}}
 function saveJijunOverrides(){try{localStorage.setItem('gh_jijun_ov',JSON.stringify(_jijunOverrides));}catch(e){}}
 function loadJijunCustomItems(){try{_jijunCustomItems=JSON.parse(localStorage.getItem('gh_jijun_ci')||'{}');}catch(e){_jijunCustomItems={};}}
 function saveJijunCustomItems(){try{localStorage.setItem('gh_jijun_ci',JSON.stringify(_jijunCustomItems));}catch(e){}}
 function loadJijunCustomSections(){try{_jijunCustomSections=JSON.parse(localStorage.getItem('gh_jijun_cs')||'{}');}catch(e){_jijunCustomSections={};}}
 function saveJijunCustomSections(){try{localStorage.setItem('gh_jijun_cs',JSON.stringify(_jijunCustomSections));}catch(e){}}
-loadJijunOverrides();loadJijunCustomItems();loadJijunCustomSections();
+function loadJijunSubSections(){try{_jijunSubSections=JSON.parse(localStorage.getItem('gh_jijun_ss')||'{}');}catch(e){_jijunSubSections={};}}
+function saveJijunSubSections(){try{localStorage.setItem('gh_jijun_ss',JSON.stringify(_jijunSubSections));}catch(e){}}
+loadJijunOverrides();loadJijunCustomItems();loadJijunCustomSections();loadJijunSubSections();
+function saveJijunCustomToSupa(){
+  if(!_supa||!_user)return;
+  _supa.from('jijun_custom').upsert({user_id:_user.id,overrides:_jijunOverrides,custom_items:_jijunCustomItems,custom_sections:_jijunCustomSections,sub_sections:_jijunSubSections,checked:_jijunChecked,updated_at:new Date().toISOString()},{onConflict:'user_id'}).then(function(){});
+}
+function loadJijunCustomFromSupa(){
+  if(!_supa||!_user)return;
+  _supa.from('jijun_custom').select('*').eq('user_id',_user.id).then(function(result){
+    if(result.error||!result.data||!result.data.length)return;
+    var r=result.data[0];
+    _jijunOverrides=r.overrides||{};
+    _jijunCustomItems=r.custom_items||{};
+    _jijunCustomSections=r.custom_sections||{};
+    _jijunSubSections=r.sub_sections||{};
+    if(r.checked)_jijunChecked=r.checked;
+    saveJijunOverrides();saveJijunCustomItems();saveJijunCustomSections();saveJijunSubSections();saveJijunChecked();
+    if(_navMode==='jijun')showJijun();
+  });
+}
 function toggleJijunEditMode(){_jijunEditMode=!_jijunEditMode;showJijun();}
 function editJijunItem(key){
   var parts=key.split('_');
@@ -45,17 +66,21 @@ function editJijunItem(key){
   t=t.replace(/^\s+|\s+$/g,'');
   if(!t||t===item.text){delete _jijunOverrides[key];}else{_jijunOverrides[key]=t;}
   saveJijunOverrides();
+  saveJijunCustomToSupa();
   showJijun();
 }
-function addJijunCustomItem(sectionKey,ev){
+function addJijunCustomItem(sectionKey,groupId,ev){
   if(ev)ev.stopPropagation();
   var t=prompt('추가할 지문 내용을 입력하세요','');
   if(t===null)return;
   t=t.replace(/^\s+|\s+$/g,'');
   if(!t)return;
   if(!_jijunCustomItems[sectionKey])_jijunCustomItems[sectionKey]=[];
-  _jijunCustomItems[sectionKey].push({id:Date.now(),text:t});
+  var entry={id:Date.now(),text:t};
+  if(groupId)entry.groupId=groupId;
+  _jijunCustomItems[sectionKey].push(entry);
   saveJijunCustomItems();
+  saveJijunCustomToSupa();
   showJijun();
 }
 function editJijunCustomItem(sectionKey,id,ev){
@@ -69,6 +94,7 @@ function editJijunCustomItem(sectionKey,id,ev){
   if(!t)return;
   it.text=t;
   saveJijunCustomItems();
+  saveJijunCustomToSupa();
   showJijun();
 }
 function deleteJijunCustomItem(sectionKey,id,ev){
@@ -78,27 +104,68 @@ function deleteJijunCustomItem(sectionKey,id,ev){
   var idx=arr.findIndex(function(x){return x.id===id;});
   if(idx>=0)arr.splice(idx,1);
   saveJijunCustomItems();
+  saveJijunCustomToSupa();
+  showJijun();
+}
+function addJijunSubSection(sectionKey){
+  var name=prompt('추가할 소분류 이름을 입력하세요 (예: 용도지구)','');
+  if(name===null)return;
+  name=name.replace(/^\s+|\s+$/g,'');
+  if(!name)return;
+  if(!_jijunSubSections[sectionKey])_jijunSubSections[sectionKey]=[];
+  _jijunSubSections[sectionKey].push({id:Date.now(),name:name});
+  saveJijunSubSections();
+  saveJijunCustomToSupa();
+  showJijun();
+}
+function deleteJijunSubSection(sectionKey,groupId){
+  if(!confirm('이 소분류를 삭제할까요? (안에 있던 지문은 소분류 없이 남아요)'))return;
+  var arr=_jijunSubSections[sectionKey]||[];
+  var idx=arr.findIndex(function(x){return x.id===groupId;});
+  if(idx>=0)arr.splice(idx,1);
+  saveJijunSubSections();
+  (_jijunCustomItems[sectionKey]||[]).forEach(function(it){if(it.groupId===groupId)delete it.groupId;});
+  saveJijunCustomItems();
+  saveJijunCustomToSupa();
   showJijun();
 }
 function addJijunCustomSection(subjIdx){
-  var name=prompt('추가할 카테고리(소분류) 이름을 입력하세요','');
+  var name=prompt('추가할 대분류(편) 이름을 입력하세요','');
   if(name===null)return;
   name=name.replace(/^\s+|\s+$/g,'');
   if(!name)return;
   if(!_jijunCustomSections[subjIdx])_jijunCustomSections[subjIdx]=[];
   _jijunCustomSections[subjIdx].push({id:Date.now(),name:name});
   saveJijunCustomSections();
+  saveJijunCustomToSupa();
   showJijun();
 }
 function deleteJijunCustomSection(subjIdx,id){
-  if(!confirm('이 카테고리와 안의 지문이 모두 삭제됩니다. 계속할까요?'))return;
+  if(!confirm('이 대분류와 안의 지문이 모두 삭제됩니다. 계속할까요?'))return;
   var arr=_jijunCustomSections[subjIdx]||[];
   var idx=arr.findIndex(function(x){return x.id===id;});
   if(idx>=0)arr.splice(idx,1);
   delete _jijunCustomItems[subjIdx+'_c'+id];
   saveJijunCustomSections();
   saveJijunCustomItems();
+  saveJijunCustomToSupa();
   showJijun();
+}
+function renderJijunCustomItemRow(ci,sectionKey,subjName){
+  var k=sectionKey+'_c'+ci.id;
+  var checked=!!_jijunChecked[k];
+  var textHtml=_jijunBlankMode?makeBlankHtml(ci.text,k):memoEsc(ci.text,subjName,false,k);
+  var h='<div data-qkey="'+k+'" style="display:flex;align-items:flex-start;gap:6px;padding:10px 16px;border-bottom:1px solid #f1f5f9;font-size:13px;line-height:1.7;color:#374151;background:#faf5ff">';
+  h+='<button id="jc_'+k+'" onclick="toggleJijunCheck(\''+k+'\')" style="flex-shrink:0;background:none;border:none;font-size:18px;cursor:pointer;color:'+(checked?'#f59e0b':'#cbd5e1')+';padding:0;margin-top:1px;line-height:1">'+(checked?'★':'☆')+'</button>';
+  h+='<span style="flex-shrink:0;font-weight:700;color:#7c3aed;min-width:20px;font-size:11px">추가</span>';
+  h+='<span style="flex:1">'+textHtml+'</span>';
+  if(_jijunEditMode){
+    h+='<button onclick="editJijunCustomItem(\''+sectionKey+'\','+ci.id+',event)" style="flex-shrink:0;background:none;border:none;cursor:pointer;font-size:13px;color:#94a3b8;padding:0 2px">✏️</button>';
+    h+='<button onclick="deleteJijunCustomItem(\''+sectionKey+'\','+ci.id+',event)" style="flex-shrink:0;background:none;border:none;cursor:pointer;font-size:13px;color:#cbd5e1;padding:0 2px">✕</button>';
+  }
+  if(_jijunBlankMode&&_jijunCustomBlanks[k]&&_jijunCustomBlanks[k].length)h+='<button onclick="resetItemBlanks(\''+k+'\',event)" title="이 지문만 빈칸 초기화" style="flex-shrink:0;background:none;border:none;cursor:pointer;font-size:12px;color:#0369a1;padding:0 2px">↺</button>';
+  h+='</div>';
+  return h;
 }
 function revealBlank(el){
   el.innerHTML=el.getAttribute('data-ans');
@@ -211,6 +278,8 @@ function loadStudyLogFromSupa(){
       }
     });
     saveStudyLog();
+    renderSidebar();
+    if(_navMode==='exam')renderMain();
   });
 }
 function addStudyLog(){
@@ -243,7 +312,7 @@ function loadMemosFromSupa(){
   if(!_supa||!_user)return;
   _supa.from('memos').select('*').eq('user_id',_user.id).order('ts',{ascending:false}).then(function(result){
     if(result.error||!result.data)return;
-    var supaMemos=result.data.map(function(r){return {ts:r.ts,subj:r.subject,qkey:r.qkey||'',excerpt:r.excerpt,note:r.note||''};});
+    var supaMemos=result.data.map(function(r){return {ts:r.ts,subj:r.subject,qkey:r.qkey||'',mode:r.mode||'',excerpt:r.excerpt,note:r.note||''};});
     var merged={};
     _memos.forEach(function(m){merged[m.ts]=m;});
     supaMemos.forEach(function(m){merged[m.ts]=m;});
@@ -251,7 +320,7 @@ function loadMemosFromSupa(){
     var supaTsSet={};result.data.forEach(function(r){supaTsSet[r.ts]=true;});
     _memos.forEach(function(m){
       if(!supaTsSet[m.ts]){
-        _supa.from('memos').insert({user_id:_user.id,subject:m.subj,qkey:m.qkey||'',excerpt:m.excerpt,note:m.note||'',ts:m.ts}).then(function(){});
+        _supa.from('memos').insert({user_id:_user.id,subject:m.subj,qkey:m.qkey||'',mode:m.mode||'',excerpt:m.excerpt,note:m.note||'',ts:m.ts}).then(function(){});
       }
     });
     saveMemos();
@@ -259,8 +328,80 @@ function loadMemosFromSupa(){
   });
 }
 function setMemoFilter(s){_memoFilter=s;showMemoList();}
+var _memoEditingTs=null;
+function startEditMemoNote(ts,ev){if(ev)ev.stopPropagation();_memoEditingTs=ts;showMemoList();}
+function cancelEditMemoNote(){_memoEditingTs=null;showMemoList();}
+function saveMemoNote(ts){
+  var ta=document.getElementById('memoNoteEdit'+ts);
+  var note=ta?ta.value:'';
+  var m=_memos.find(function(x){return x.ts===ts;});
+  if(!m)return;
+  m.note=note;
+  saveMemos();
+  if(_supa&&_user){_supa.from('memos').update({note:note}).eq('user_id',_user.id).eq('ts',ts).then(function(){});}
+  _memoEditingTs=null;
+  showMemoList();
+}
+function goToMemoSource(ts){
+  if(_memoEditingTs!==null)return;
+  var m=_memos.find(function(x){return x.ts===ts;});
+  if(!m||!m.qkey){alert('이 메모는 원본 위치 정보가 없어서 바로가기를 지원하지 않아요.');return;}
+  var key=m.qkey;
+  var mode=m.mode;
+  if(!mode){
+    if(/_c\d/.test(key)){mode='jijun';}
+    else{
+      var p=key.split('_');
+      if(p.length===2&&p[0].length>=10){mode='studio';}
+      else if(p.length>=3){var first=parseInt(p[0],10);mode=(first>=30&&first<=36)?'exam':'jijun';}
+    }
+  }
+  closeMenu();
+  if(mode==='jijun'){
+    var jp=key.split('_');
+    var subjIdx=parseInt(jp[0],10);
+    if(isNaN(subjIdx)||typeof _jijunData==='undefined'||!_jijunData||!_jijunData[subjIdx]){alert('해당 지문을 찾을 수 없어요.');return;}
+    _jijunSubj=subjIdx;_navMode='jijun';_jijunViewMode='all';
+    renderSidebar();showJijun();
+    setTimeout(function(){
+      var el=document.querySelector('[data-qkey="'+key+'"]');
+      if(!el)return;
+      el.scrollIntoView({behavior:'smooth',block:'center'});
+      var orig=el.style.background;
+      el.style.background='#fef3c7';
+      setTimeout(function(){el.style.background=orig;},1500);
+    },60);
+  }else if(mode==='exam'||mode==='mix'){
+    var ep=key.split('_');
+    var year=parseInt(ep[0],10),si=parseInt(ep[1],10),qnum=parseInt(ep[2],10);
+    var data=EXAM_DATA[year];
+    if(!data||!data[si]){alert('해당 문제를 찾을 수 없어요.');return;}
+    var qi=-1;
+    for(var i=0;i<data[si].questions.length;i++){if(data[si].questions[i].number===qnum){qi=i;break;}}
+    if(qi<0){alert('해당 문제를 찾을 수 없어요.');return;}
+    _mbActive=null;_navMode='exam';state.examYear=year;state.subjectIdx=si;state.filter='all';state.search='';_showSkipped=true;
+    var qs=filteredQ();
+    var idx=-1;
+    for(var j=0;j<qs.length;j++){if(qk(qs[j])===key){idx=j;break;}}
+    state.currentQ=idx>=0?idx:0;
+    renderSidebar();renderMain();
+  }else if(mode==='studio'){
+    var sp=key.split('_');
+    var bookId=sp[0],qIdx=parseInt(sp[1],10);
+    var book=null;
+    for(var b=0;b<_myBooks.length;b++){if(''+_myBooks[b].id===bookId){book=_myBooks[b];break;}}
+    if(!book){alert('해당 문제집을 찾을 수 없어요.');return;}
+    _navMode='studio';_mbActive=book;_mbQ=isNaN(qIdx)?0:qIdx;
+    var mp=_mbProgress[book.id];
+    _mbAns=mp?(mp.ans||{}):{};
+    _mbBm=mp?(mp.bm||{}):{};
+    renderSidebar();renderMyBook();
+  }else{
+    alert('바로가기를 지원하지 않는 메모예요.');
+  }
+}
 function showMemoList(){
-  _navMode='memo';
+  _navMode='memo';_memoEditingTs=null;
   renderSidebar();
   var subjs=[];var seen={};
   _memos.forEach(function(m){if(m.subj&&!seen[m.subj]){seen[m.subj]=true;subjs.push(m.subj);}});
@@ -280,14 +421,26 @@ function showMemoList(){
     h+='<div class="empty"><div style="font-size:48px">📝</div><p>'+emptyMsg+'</p></div>';
   }else{
     list.forEach(function(m){
-      h+='<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px 18px;margin-bottom:12px">';
+      var editing=_memoEditingTs===m.ts;
+      h+='<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px 18px;margin-bottom:12px;'+(editing?'':'cursor:pointer')+'"'+(editing?'':' onclick="goToMemoSource('+m.ts+')"')+'>';
       h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px">';
       h+='<span style="font-size:11px;font-weight:700;color:#2563eb;background:#eff6ff;padding:3px 10px;border-radius:20px">'+esc(m.subj||'')+'</span>';
-      h+='<button onclick="deleteMemo('+m.ts+')" style="background:none;border:none;color:#cbd5e1;cursor:pointer;font-size:13px">✕</button>';
+      h+='<div style="display:flex;gap:2px;flex-shrink:0">';
+      if(!editing)h+='<button onclick="startEditMemoNote('+m.ts+',event)" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:13px;padding:4px">✏️</button>';
+      h+='<button onclick="event.stopPropagation();deleteMemo('+m.ts+')" style="background:none;border:none;color:#cbd5e1;cursor:pointer;font-size:13px;padding:4px">✕</button>';
       h+='</div>';
-      h+='<div style="font-size:14px;line-height:1.6;color:#1e293b;background:#fffbeb;border-left:3px solid #f59e0b;padding:8px 12px;margin-bottom:'+(m.note?'8px':'0')+'">'+esc(m.excerpt)+'</div>';
-      if(m.note)h+='<div style="font-size:13px;color:#475569;padding:2px 2px">&#x1F4AC; '+esc(m.note)+'</div>';
-      h+='<div style="font-size:11px;color:#94a3b8;margin-top:8px">'+new Date(m.ts).toLocaleDateString('ko-KR')+'</div>';
+      h+='</div>';
+      h+='<div style="font-size:14px;line-height:1.6;color:#1e293b;background:#fffbeb;border-left:3px solid #f59e0b;padding:8px 12px;margin-bottom:'+(m.note||editing?'8px':'0')+'">'+esc(m.excerpt)+'</div>';
+      if(editing){
+        h+='<textarea id="memoNoteEdit'+m.ts+'" onclick="event.stopPropagation()" placeholder="코멘트를 입력하세요" style="width:100%;min-height:60px;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;line-height:1.5;resize:vertical;box-sizing:border-box;font-family:inherit;margin-bottom:8px">'+escPlain(m.note)+'</textarea>';
+        h+='<div style="display:flex;gap:8px;justify-content:flex-end">';
+        h+='<button onclick="event.stopPropagation();cancelEditMemoNote()" style="padding:6px 14px;background:#f1f5f9;color:#475569;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">취소</button>';
+        h+='<button onclick="event.stopPropagation();saveMemoNote('+m.ts+')" style="padding:6px 14px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">저장</button>';
+        h+='</div>';
+      }else if(m.note){
+        h+='<div style="font-size:13px;color:#475569;padding:2px 2px">&#x1F4AC; '+esc(m.note)+'</div>';
+      }
+      h+='<div style="font-size:11px;color:#94a3b8;margin-top:8px">'+new Date(m.ts).toLocaleDateString('ko-KR')+(editing?'':' &middot; 눌러서 지문으로 이동')+'</div>';
       h+='</div>';
     });
   }
@@ -348,6 +501,13 @@ function wrapTextareaSelection(id,before,after){
   ta.focus();
   ta.selectionStart=start+before.length;
   ta.selectionEnd=start+before.length+selected.length;
+  updateWnPreview(id);
+}
+function updateWnPreview(id){
+  var ta=document.getElementById(id);
+  var prev=document.getElementById(id+'Preview');
+  if(!ta||!prev)return;
+  prev.innerHTML=ta.value?renderNoteText(ta.value):'<span style="color:#cbd5e1">미리보기가 여기 표시돼요</span>';
 }
 function loadWrongNotesFromSupa(){
   if(!_supa||!_user)return;
@@ -530,7 +690,8 @@ function renderWnForm(){
     h+='<button type="button" onclick="wrapTextareaSelection(\'wnItemText'+i+'\',\'==\',\'==\')" style="padding:2px 8px;border:1.5px solid #fde68a;border-radius:6px;background:#fffbeb;font-size:11px;font-weight:700;cursor:pointer;color:#92400e">&#x1F58D;&#xFE0F;</button>';
     if(_wnActive.items.length>1)h+='<button type="button" onclick="removeWnItem('+i+')" style="background:none;border:none;color:#cbd5e1;cursor:pointer;font-size:14px">✕</button>';
     h+='</div></div>';
-    h+='<textarea id="wnItemText'+i+'" placeholder="지문/문장을 입력하세요" style="width:100%;min-height:60px;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13.5px;line-height:1.6;resize:vertical;box-sizing:border-box;font-family:inherit;margin-bottom:8px;background:#fff">'+escPlain(it.text)+'</textarea>';
+    h+='<textarea id="wnItemText'+i+'" oninput="updateWnPreview(\'wnItemText'+i+'\')" placeholder="지문/문장을 입력하세요" style="width:100%;min-height:60px;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13.5px;line-height:1.6;resize:vertical;box-sizing:border-box;font-family:inherit;margin-bottom:6px;background:#fff">'+escPlain(it.text)+'</textarea>';
+    h+='<div id="wnItemText'+i+'Preview" style="margin-bottom:8px;padding:8px 10px;background:#fff;border:1px dashed #e2e8f0;border-radius:8px;font-size:13px;line-height:1.6;color:#1e293b">'+(it.text?renderNoteText(it.text):'<span style="color:#cbd5e1">미리보기가 여기 표시돼요</span>')+'</div>';
     h+='<label style="display:block;font-size:11px;font-weight:700;color:#ef4444;margin-bottom:4px">&#x1F914; 틀린 이유 (선택)</label>';
     h+='<input id="wnItemReason'+i+'" value="'+escPlain(it.reason)+'" placeholder="예: 3년/5년 숫자 헷갈림" style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;background:#fff">';
     h+='</div>';
@@ -541,7 +702,8 @@ function renderWnForm(){
   h+='<button type="button" onclick="wrapTextareaSelection(\'wnSummary\',\'**\',\'**\')" style="padding:4px 10px;border:1.5px solid #e2e8f0;border-radius:6px;background:#f8fafc;font-size:12px;font-weight:700;cursor:pointer">B 굵게</button>';
   h+='<button type="button" onclick="wrapTextareaSelection(\'wnSummary\',\'==\',\'==\')" style="padding:4px 10px;border:1.5px solid #fde68a;border-radius:6px;background:#fffbeb;font-size:12px;font-weight:700;cursor:pointer;color:#92400e">&#x1F58D;&#xFE0F; 하이라이트</button>';
   h+='</div>';
-  h+='<textarea id="wnSummary" placeholder="지문과 별개로 자유롭게 정리해보세요. 줄바꿈해도 지문처럼 버튼으로 나뉘지 않아요" style="width:100%;min-height:140px;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;line-height:1.75;resize:vertical;box-sizing:border-box;font-family:inherit;margin-bottom:16px">'+escPlain(_wnActive.summary)+'</textarea>';
+  h+='<textarea id="wnSummary" oninput="updateWnPreview(\'wnSummary\')" placeholder="지문과 별개로 자유롭게 정리해보세요. 줄바꿈해도 지문처럼 버튼으로 나뉘지 않아요" style="width:100%;min-height:140px;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;line-height:1.75;resize:vertical;box-sizing:border-box;font-family:inherit;margin-bottom:8px">'+escPlain(_wnActive.summary)+'</textarea>';
+  h+='<div id="wnSummaryPreview" style="margin-bottom:16px;padding:10px 12px;background:#fff;border:1px dashed #e2e8f0;border-radius:8px;font-size:14px;line-height:1.75;color:#1e293b">'+(_wnActive.summary?renderNoteText(_wnActive.summary):'<span style="color:#cbd5e1">미리보기가 여기 표시돼요</span>')+'</div>';
   h+='<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:6px">';
   h+='<div style="flex:1;min-width:160px">';
   h+='<label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:6px">출처 (선택)</label>';
@@ -595,9 +757,9 @@ function deleteWrongNote(id){
 }
 function toggleSkip(key){
   if(state.skip[key]){delete state.skip[key];}else{state.skip[key]=true;}
-  saveS();renderMain();renderSidebar();
+  saveS();saveRowToSupa(key);renderMain();renderSidebar();
 }
-loadS();loadStudyLog();loadMix();loadMemos();loadWrongNotes();
+loadS();loadStudyLog();loadMix();loadMemos();loadWrongNotes();loadElim();
 function saveNavState(){
   try{localStorage.setItem('gh_nav',JSON.stringify({
     y:state.examYear,s:state.subjectIdx,q:state.currentQ,f:state.filter,
@@ -620,6 +782,34 @@ loadNavState();
 function loadMyBooksLocal(){try{_myBooks=JSON.parse(localStorage.getItem('gh_mybooks')||'[]');}catch(e){_myBooks=[];}}
 function saveMyBooksLocal(){try{localStorage.setItem('gh_mybooks',JSON.stringify(_myBooks));}catch(e){}}
 loadMyBooksLocal();
+// ── 내 문제집 답안/북마크 진행상태 저장 ──────────────────
+var _mbProgress={};
+function loadMbProgressLocal(){try{_mbProgress=JSON.parse(localStorage.getItem('gh_mbprog')||'{}');}catch(e){_mbProgress={};}}
+function saveMbProgressLocal(){try{localStorage.setItem('gh_mbprog',JSON.stringify(_mbProgress));}catch(e){}}
+loadMbProgressLocal();
+function saveMbProgress(){
+  if(!_mbActive)return;
+  _mbProgress[_mbActive.id]={ans:_mbAns,bm:_mbBm};
+  saveMbProgressLocal();
+  if(_supa&&_user){
+    _supa.from('mybook_progress').upsert({user_id:_user.id,book_id:''+_mbActive.id,answers:_mbAns,bookmarks:_mbBm,updated_at:new Date().toISOString()},{onConflict:'user_id,book_id'}).then(function(){});
+  }
+}
+function loadMbProgressFromSupa(){
+  if(!_supa||!_user)return;
+  _supa.from('mybook_progress').select('*').eq('user_id',_user.id).then(function(result){
+    if(result.error||!result.data)return;
+    result.data.forEach(function(r){
+      if(!_mbProgress[r.book_id]){_mbProgress[r.book_id]={ans:r.answers||{},bm:r.bookmarks||{}};}
+    });
+    saveMbProgressLocal();
+    if(_mbActive){
+      var p=_mbProgress[_mbActive.id];
+      if(p){_mbAns=p.ans||{};_mbBm=p.bm||{};}
+    }
+    if(_navMode==='studio')renderMyBook();
+  });
+}
 function curData(){
   var base=EXAM_DATA[state.examYear]||EXAM_DATA_36;
   var ydb=_dbQuestions[state.examYear];
@@ -840,6 +1030,7 @@ function saveRowToSupa(key){
     is_correct:answerGiven?(answerGiven===found.q.answer):null,
     is_bookmarked:!!state.bookmarks[key],
     is_resolved:!!state.resolved[key],
+    is_skipped:!!state.skip[key],
     attempt_count:answerGiven?1:0,
     last_attempted_at:new Date().toISOString()
   };
@@ -861,6 +1052,7 @@ function syncFromSupa(){
       if(row.answer_given)state.answers[k]=row.answer_given;
       if(row.is_bookmarked)state.bookmarks[k]=true;
       if(row.is_resolved)state.resolved[k]=true;
+      if(row.is_skipped)state.skip[k]=true;
     });
     saveS();
     renderSidebar();
@@ -871,6 +1063,9 @@ function syncFromSupa(){
   loadStudyLogFromSupa();
   loadMemosFromSupa();
   loadWrongNotesFromSupa();
+  loadJijunCustomFromSupa();
+  loadUserMiscFromSupa();
+  loadMbProgressFromSupa();
 }
 function toggleMenu(){
   var sd=document.getElementById('sidebar');
@@ -935,13 +1130,14 @@ function showJijun(){
   if(_jijunBlankMode){h+='<button onclick="resetBlanks()" style="padding:5px 12px;border-radius:20px;font-size:12px;cursor:pointer;background:#e0f2fe;color:#0369a1;border:1.5px solid #7dd3fc">↺ 빈칸 초기화</button>';}
   h+='<button class="filter-btn'+(_jijunEditMode?' active':'')+'" onclick="toggleJijunEditMode()" style="'+(_jijunEditMode?'background:#faf5ff;border-color:#c4b5fd;color:#7c3aed':'')+'">&#x1F4DD; 지문 추가/수정'+((_jijunEditMode?' ON':''))+'</button>';
   if(_jijunBlankMode){h+='<div style="width:100%;font-size:11px;color:#94a3b8;padding:2px 4px">💡 숫자·법령명은 자동 빈칸 &nbsp;|&nbsp; 단어 클릭 → 직접 빈칸 추가/해제 &nbsp;|&nbsp; ↺ 아이콘으로 지문별 초기화</div>';}
-  if(_jijunEditMode){h+='<div style="width:100%;font-size:11px;color:#94a3b8;padding:2px 4px">💡 ✏️로 기존 지문 수정, 각 편 하단 버튼으로 지문 추가, 맨 아래 버튼으로 카테고리 추가</div>';}
+  if(_jijunEditMode){h+='<div style="width:100%;font-size:11px;color:#94a3b8;padding:2px 4px">💡 ✏️로 기존 지문 수정, 각 편 하단 버튼으로 지문/소분류 추가, 맨 아래 버튼으로 대분류(편) 추가</div>';}
   h+='</div>';
   h+='<div style="font-size:11px;color:#94a3b8;padding:2px 4px 10px">💡 문장을 드래그해서 선택하면 메모장에 저장할 수 있어요</div>';
   h+='<div id="jijunBody" onmouseup="checkTextSelection()">';
   subj.sections.forEach(function(sec,sidx){
     var sectionKey=_jijunSubj+'_'+sidx;
     var customItems=_jijunCustomItems[sectionKey]||[];
+    var subSecs=_jijunSubSections[sectionKey]||[];
     var visibleItems=sec.items.filter(function(item){
       if(_jijunViewMode==='checked'){var k=_jijunSubj+'_'+sidx+'_'+item.num;return _jijunChecked[k];}
       return true;
@@ -963,27 +1159,27 @@ function showJijun(){
       h+='<div data-qkey="'+k+'" style="display:flex;align-items:flex-start;gap:6px;padding:10px 16px;border-bottom:1px solid #f1f5f9;font-size:13px;line-height:1.7;color:#374151">';
       h+='<button id="jc_'+k+'" onclick="toggleJijunCheck(\''+k+'\')" style="flex-shrink:0;background:none;border:none;font-size:18px;cursor:pointer;color:'+(checked?'#f59e0b':'#cbd5e1')+';padding:0;margin-top:1px;line-height:1">'+(checked?'★':'☆')+'</button>';
       h+='<span style="flex-shrink:0;font-weight:700;color:#2563eb;min-width:20px">'+item.num+'.</span>';
-      h+='<span style="flex:1">'+textHtml+(overridden?' <span style="font-size:10px;color:#94a3b8">(수정됨)</span>':'')+'</span>';
+      h+='<span style="flex:1">'+textHtml+'</span>';
       if(_jijunEditMode)h+='<button onclick="editJijunItem(\''+k+'\')" style="flex-shrink:0;background:none;border:none;cursor:pointer;font-size:13px;color:#94a3b8;padding:0 2px">✏️</button>';
       if(_jijunBlankMode&&_jijunCustomBlanks[k]&&_jijunCustomBlanks[k].length)h+='<button onclick="resetItemBlanks(\''+k+'\',event)" title="이 지문만 빈칸 초기화" style="flex-shrink:0;background:none;border:none;cursor:pointer;font-size:12px;color:#0369a1;padding:0 2px">↺</button>';
       h+='</div>';
     });
-    visibleCustom.forEach(function(ci){
-      var k=sectionKey+'_c'+ci.id;
-      var checked=!!_jijunChecked[k];
-      var textHtml=_jijunBlankMode?makeBlankHtml(ci.text,k):memoEsc(ci.text,subj.subject,false,k);
-      h+='<div data-qkey="'+k+'" style="display:flex;align-items:flex-start;gap:6px;padding:10px 16px;border-bottom:1px solid #f1f5f9;font-size:13px;line-height:1.7;color:#374151;background:#faf5ff">';
-      h+='<button id="jc_'+k+'" onclick="toggleJijunCheck(\''+k+'\')" style="flex-shrink:0;background:none;border:none;font-size:18px;cursor:pointer;color:'+(checked?'#f59e0b':'#cbd5e1')+';padding:0;margin-top:1px;line-height:1">'+(checked?'★':'☆')+'</button>';
-      h+='<span style="flex-shrink:0;font-weight:700;color:#7c3aed;min-width:20px;font-size:11px">추가</span>';
-      h+='<span style="flex:1">'+textHtml+'</span>';
-      if(_jijunEditMode){
-        h+='<button onclick="editJijunCustomItem(\''+sectionKey+'\','+ci.id+',event)" style="flex-shrink:0;background:none;border:none;cursor:pointer;font-size:13px;color:#94a3b8;padding:0 2px">✏️</button>';
-        h+='<button onclick="deleteJijunCustomItem(\''+sectionKey+'\','+ci.id+',event)" style="flex-shrink:0;background:none;border:none;cursor:pointer;font-size:13px;color:#cbd5e1;padding:0 2px">✕</button>';
-      }
-      if(_jijunBlankMode&&_jijunCustomBlanks[k]&&_jijunCustomBlanks[k].length)h+='<button onclick="resetItemBlanks(\''+k+'\',event)" title="이 지문만 빈칸 초기화" style="flex-shrink:0;background:none;border:none;cursor:pointer;font-size:12px;color:#0369a1;padding:0 2px">↺</button>';
+    var ungroupedCustom=visibleCustom.filter(function(ci){return !ci.groupId;});
+    ungroupedCustom.forEach(function(ci){h+=renderJijunCustomItemRow(ci,sectionKey,subj.subject);});
+    if(_jijunEditMode)h+='<div style="padding:8px 16px"><button onclick="addJijunCustomItem(\''+sectionKey+'\',null)" style="padding:5px 12px;background:#eff6ff;color:#2563eb;border:1.5px dashed #93c5fd;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#x2795; 지문 추가</button></div>';
+    subSecs.forEach(function(g){
+      var groupItems=visibleCustom.filter(function(ci){return ci.groupId===g.id;});
+      if(!groupItems.length&&!_jijunEditMode)return;
+      h+='<div style="margin:6px 12px 10px;border:1.5px dashed #ddd6fe;border-radius:10px;overflow:hidden">';
+      h+='<div style="padding:8px 14px;background:#faf5ff;font-size:12px;font-weight:700;color:#7c3aed;display:flex;justify-content:space-between;align-items:center">';
+      h+='<span>&#x1F4CC; '+esc(g.name)+'</span>';
+      if(_jijunEditMode)h+='<button onclick="deleteJijunSubSection(\''+sectionKey+'\','+g.id+')" style="background:none;border:none;color:#c4b5fd;cursor:pointer;font-size:12px">✕</button>';
+      h+='</div>';
+      groupItems.forEach(function(ci){h+=renderJijunCustomItemRow(ci,sectionKey,subj.subject);});
+      if(_jijunEditMode)h+='<div style="padding:6px 14px"><button onclick="addJijunCustomItem(\''+sectionKey+'\','+g.id+')" style="padding:4px 10px;background:#fff;color:#7c3aed;border:1.5px dashed #ddd6fe;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">&#x2795; 이 소분류에 지문 추가</button></div>';
       h+='</div>';
     });
-    if(_jijunEditMode)h+='<div style="padding:8px 16px"><button onclick="addJijunCustomItem(\''+sectionKey+'\')" style="padding:5px 12px;background:#eff6ff;color:#2563eb;border:1.5px dashed #93c5fd;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#x2795; 지문 추가</button></div>';
+    if(_jijunEditMode)h+='<div style="padding:0 16px 10px"><button onclick="addJijunSubSection(\''+sectionKey+'\')" style="padding:5px 12px;background:#fff;color:#7c3aed;border:1.5px dashed #ddd6fe;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#x1F4CC; 이 편에 소분류 추가</button></div>';
     h+='</div></div>';
   });
   (_jijunCustomSections[_jijunSubj]||[]).forEach(function(cs){
@@ -996,29 +1192,16 @@ function showJijun(){
     if(!visibleCustom.length&&!_jijunEditMode)return;
     h+='<div style="background:#fff;border-radius:12px;border:1.5px solid #ddd6fe;margin-bottom:20px;overflow:hidden">';
     h+='<div style="padding:14px 20px;background:#faf5ff;border-bottom:1px solid #ddd6fe;font-size:14px;font-weight:700;color:#1e293b;display:flex;justify-content:space-between;align-items:center">';
-    h+='<span>'+esc(cs.name)+' <span style="font-size:10px;color:#a78bfa;font-weight:700">내 카테고리</span></span>';
+    h+='<span>'+esc(cs.name)+' <span style="font-size:10px;color:#a78bfa;font-weight:700">내 대분류</span></span>';
     if(_jijunEditMode)h+='<button onclick="deleteJijunCustomSection('+_jijunSubj+','+cs.id+')" style="background:none;border:none;color:#c4b5fd;cursor:pointer;font-size:13px">✕</button>';
     h+='</div>';
     h+='<div style="padding:4px 0">';
-    visibleCustom.forEach(function(ci){
-      var k=sectionKey+'_c'+ci.id;
-      var checked=!!_jijunChecked[k];
-      var textHtml=_jijunBlankMode?makeBlankHtml(ci.text,k):memoEsc(ci.text,subj.subject,false,k);
-      h+='<div data-qkey="'+k+'" style="display:flex;align-items:flex-start;gap:6px;padding:10px 16px;border-bottom:1px solid #f1f5f9;font-size:13px;line-height:1.7;color:#374151">';
-      h+='<button id="jc_'+k+'" onclick="toggleJijunCheck(\''+k+'\')" style="flex-shrink:0;background:none;border:none;font-size:18px;cursor:pointer;color:'+(checked?'#f59e0b':'#cbd5e1')+';padding:0;margin-top:1px;line-height:1">'+(checked?'★':'☆')+'</button>';
-      h+='<span style="flex:1">'+textHtml+'</span>';
-      if(_jijunEditMode){
-        h+='<button onclick="editJijunCustomItem(\''+sectionKey+'\','+ci.id+',event)" style="flex-shrink:0;background:none;border:none;cursor:pointer;font-size:13px;color:#94a3b8;padding:0 2px">✏️</button>';
-        h+='<button onclick="deleteJijunCustomItem(\''+sectionKey+'\','+ci.id+',event)" style="flex-shrink:0;background:none;border:none;cursor:pointer;font-size:13px;color:#cbd5e1;padding:0 2px">✕</button>';
-      }
-      if(_jijunBlankMode&&_jijunCustomBlanks[k]&&_jijunCustomBlanks[k].length)h+='<button onclick="resetItemBlanks(\''+k+'\',event)" title="이 지문만 빈칸 초기화" style="flex-shrink:0;background:none;border:none;cursor:pointer;font-size:12px;color:#0369a1;padding:0 2px">↺</button>';
-      h+='</div>';
-    });
-    if(_jijunEditMode)h+='<div style="padding:8px 16px"><button onclick="addJijunCustomItem(\''+sectionKey+'\')" style="padding:5px 12px;background:#eff6ff;color:#2563eb;border:1.5px dashed #93c5fd;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#x2795; 지문 추가</button></div>';
+    visibleCustom.forEach(function(ci){h+=renderJijunCustomItemRow(ci,sectionKey,subj.subject);});
+    if(_jijunEditMode)h+='<div style="padding:8px 16px"><button onclick="addJijunCustomItem(\''+sectionKey+'\',null)" style="padding:5px 12px;background:#eff6ff;color:#2563eb;border:1.5px dashed #93c5fd;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#x2795; 지문 추가</button></div>';
     h+='</div></div>';
   });
   h+='</div>';
-  if(_jijunEditMode)h+='<button onclick="addJijunCustomSection('+_jijunSubj+')" style="width:100%;padding:10px;background:#faf5ff;color:#7c3aed;border:1.5px dashed #ddd6fe;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:16px">&#x2795; 카테고리(소분류) 추가</button>';
+  if(_jijunEditMode)h+='<button onclick="addJijunCustomSection('+_jijunSubj+')" style="width:100%;padding:10px;background:#faf5ff;color:#7c3aed;border:1.5px dashed #ddd6fe;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:16px">&#x2795; 새 대분류(편) 추가</button>';
   if(_jijunViewMode==='checked'&&checkedCount===0){
     h+='<div class="empty"><div style="font-size:48px">☆</div><p>★ 버튼을 눌러 지문을 모아보세요!</p></div>';
   }
@@ -1061,17 +1244,24 @@ function checkTextSelection(){
     bar.style.display='none';
   }
 }
+// mouseup만으로는 아이패드/폰의 터치 드래그 선택을 못 잡는 경우가 있어서,
+// 선택 영역이 바뀔 때마다(터치든 마우스든) 항상 감지하도록 보강
+var _selChangeTimer=null;
+document.addEventListener('selectionchange',function(){
+  clearTimeout(_selChangeTimer);
+  _selChangeTimer=setTimeout(checkTextSelection,150);
+});
 function saveTextHighlight(){
   var bar=document.getElementById('selBar');
   var txt=bar?bar.getAttribute('data-sel'):'';
   if(!txt)return;
   var qkey=bar.getAttribute('data-qkey')||'';
   var note=prompt('메모를 남겨보세요 (선택, 비워도 저장돼요)','')||'';
-  var entry={ts:Date.now(),subj:currentMemoSubject(),qkey:qkey,excerpt:txt,note:note};
+  var entry={ts:Date.now(),subj:currentMemoSubject(),qkey:qkey,mode:_navMode,excerpt:txt,note:note};
   _memos.unshift(entry);
   saveMemos();
   if(_supa&&_user){
-    _supa.from('memos').insert({user_id:_user.id,subject:entry.subj,qkey:entry.qkey,excerpt:entry.excerpt,note:entry.note,ts:entry.ts}).then(function(){});
+    _supa.from('memos').insert({user_id:_user.id,subject:entry.subj,qkey:entry.qkey,mode:entry.mode,excerpt:entry.excerpt,note:entry.note,ts:entry.ts}).then(function(){});
   }
   bar.style.display='none';
   if(window.getSelection)window.getSelection().removeAllRanges();
@@ -1198,7 +1388,28 @@ function renderMain(){
   saveNavState();
 }
 
-function toggleElim(k,i,mode){var ek=k+'_'+i;if(_eliminations[ek])delete _eliminations[ek];else _eliminations[ek]=true;if(mode==='mix'){showMix();}else{renderMain();}}
+function loadElim(){try{_eliminations=JSON.parse(localStorage.getItem('gh_elim')||'{}');}catch(e){_eliminations={};}}
+function saveElim(){try{localStorage.setItem('gh_elim',JSON.stringify(_eliminations));}catch(e){}}
+function saveUserMiscToSupa(){
+  if(!_supa||!_user)return;
+  _supa.from('user_misc').upsert({user_id:_user.id,eliminations:_eliminations,mix_state:{sn:_mixSubjName,qs:_mixQuestions,cur:_mixCurrentQ,ans:_mixAnswers},updated_at:new Date().toISOString()},{onConflict:'user_id'}).then(function(){});
+}
+function loadUserMiscFromSupa(){
+  if(!_supa||!_user)return;
+  _supa.from('user_misc').select('*').eq('user_id',_user.id).then(function(result){
+    if(result.error||!result.data||!result.data.length)return;
+    var r=result.data[0];
+    if(r.eliminations)_eliminations=r.eliminations;
+    saveElim();
+    if(r.mix_state&&r.mix_state.qs&&r.mix_state.qs.length&&!_mixQuestions.length){
+      _mixSubjName=r.mix_state.sn||'';_mixQuestions=r.mix_state.qs;_mixCurrentQ=r.mix_state.cur||0;_mixAnswers=r.mix_state.ans||{};
+      saveMix();
+    }
+    if(_navMode==='exam')renderMain();
+    if(_navMode==='mix')showMix();
+  });
+}
+function toggleElim(k,i,mode){var ek=k+'_'+i;if(_eliminations[ek])delete _eliminations[ek];else _eliminations[ek]=true;saveElim();saveUserMiscToSupa();if(mode==='mix'){showMix();}else{renderMain();}}
 function selYear(y){_mbActive=null;_navMode='exam';state.examYear=y;state.subjectIdx=0;state.currentQ=0;state.filter='all';state.search='';renderSidebar();renderMain();closeMenu();}
 function selSubj(i){_mbActive=null;_navMode='exam';state.subjectIdx=i;state.currentQ=0;state.filter='all';state.search='';renderSidebar();renderMain();closeMenu();}
 function setFilter(f){state.filter=f;state.currentQ=0;renderMain();}
@@ -1252,7 +1463,7 @@ function getQsForSubj(subjName){
   return all;
 }
 
-function saveMix(){try{localStorage.setItem('gh_mix',JSON.stringify({sn:_mixSubjName,qs:_mixQuestions,cur:_mixCurrentQ,ans:_mixAnswers}));}catch(e){}}
+function saveMix(){try{localStorage.setItem('gh_mix',JSON.stringify({sn:_mixSubjName,qs:_mixQuestions,cur:_mixCurrentQ,ans:_mixAnswers}));}catch(e){}saveUserMiscToSupa();}
 function loadMix(){
   try{
     var m=JSON.parse(localStorage.getItem('gh_mix')||'null');
@@ -1665,14 +1876,21 @@ function saveNewBook(title,choiceCount,questions){
 function deleteMyBook(id){
   if(!confirm('이 문제집을 삭제할까요?'))return;
   _myBooks=_myBooks.filter(function(b){return b.id!=id;});saveMyBooksLocal();
-  if(_supa&&_user){_supa.from('custom_quizbooks').delete().eq('id',id).eq('user_id',_user.id).then(function(){});}
+  delete _mbProgress[id];saveMbProgressLocal();
+  if(_supa&&_user){
+    _supa.from('custom_quizbooks').delete().eq('id',id).eq('user_id',_user.id).then(function(){});
+    _supa.from('mybook_progress').delete().eq('user_id',_user.id).eq('book_id',''+id).then(function(){});
+  }
   renderSidebar();showMyBookList();
 }
 function openMyBook(id){
   var book=null;
   for(var i=0;i<_myBooks.length;i++){if(_myBooks[i].id==id){book=_myBooks[i];break;}}
   if(!book)return;
-  _mbActive=book;_mbQ=0;_mbAns={};_mbBm={};
+  _mbActive=book;_mbQ=0;
+  var p=_mbProgress[book.id];
+  _mbAns=p?(p.ans||{}):{};
+  _mbBm=p?(p.bm||{}):{};
   renderSidebar();renderMyBook();closeMenu();
 }
 function downloadMyBook(id){
@@ -2021,8 +2239,8 @@ function showStatsMb(){
   h+='</div>';
   document.getElementById('main').innerHTML=h;
 }
-function pickMb(key,c,ans){if(_mbAns[key]!==undefined)return;_mbAns[key]=c;renderMyBook();renderSidebar();}
-function toggleBmMb(key){_mbBm[key]=!_mbBm[key];renderMyBook();}
+function pickMb(key,c,ans){if(_mbAns[key]!==undefined)return;_mbAns[key]=c;saveMbProgress();renderMyBook();renderSidebar();}
+function toggleBmMb(key){_mbBm[key]=!_mbBm[key];saveMbProgress();renderMyBook();}
 function goToMb(i){_mbQ=i;renderMyBook();}
 function nextMb(){if(!_mbActive)return;if(_mbQ<_mbActive.questions.length-1){_mbQ++;renderMyBook();}else alert('마지막 문제예요!');}
 if(_supa){
