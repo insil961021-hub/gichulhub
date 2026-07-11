@@ -294,20 +294,32 @@ function loadS(){
 }
 function loadStudyLog(){try{_studyLog=JSON.parse(localStorage.getItem('gh_log')||'[]');}catch(e){_studyLog=[];}}
 function saveStudyLog(){try{localStorage.setItem('gh_log',JSON.stringify(_studyLog));}catch(e){}}
+var _deletedLogTs={};
+function loadDeletedLogTs(){try{_deletedLogTs=JSON.parse(localStorage.getItem('gh_log_del')||'{}');}catch(e){_deletedLogTs={};}}
+function saveDeletedLogTs(){try{localStorage.setItem('gh_log_del',JSON.stringify(_deletedLogTs));}catch(e){}}
+loadDeletedLogTs();
 function loadStudyLogFromSupa(){
   if(!_supa||!_user)return;
   _supa.from('study_log').select('*').eq('user_id',_user.id).order('ts',{ascending:true}).then(function(result){
     if(result.error||!result.data)return;
     var supaLog=result.data.map(function(r){return {y:r.year,subj:r.subject,d:r.study_date,ts:r.ts};});
-    // 로컬 + Supabase 병합 (ts 기준 중복 제거)
+    // 예전에 삭제했었는데 서버에 아직 남아있는 항목은 걸러내고, 다시 삭제 요청
+    supaLog=supaLog.filter(function(l){
+      if(_deletedLogTs[l.ts]){
+        _supa.from('study_log').delete().eq('user_id',_user.id).eq('ts',l.ts).then(function(r){if(r.error)console.error('학습일지 재삭제 실패:',r.error);});
+        return false;
+      }
+      return true;
+    });
+    // 로컬 + Supabase 병합 (ts 기준 중복 제거, 삭제된 항목은 제외)
     var merged={};
-    _studyLog.forEach(function(l){merged[l.ts]=l;});
+    _studyLog.forEach(function(l){if(!_deletedLogTs[l.ts])merged[l.ts]=l;});
     supaLog.forEach(function(l){merged[l.ts]=l;});
     _studyLog=Object.keys(merged).map(function(k){return merged[k];}).sort(function(a,b){return a.ts-b.ts;});
-    // 로컬에만 있는 항목 → Supabase에 업로드
+    // 로컬에만 있는 항목(삭제되지 않은 것만) → Supabase에 업로드
     var supaTsSet={};result.data.forEach(function(r){supaTsSet[r.ts]=true;});
     _studyLog.forEach(function(l){
-      if(!supaTsSet[l.ts]){
+      if(!supaTsSet[l.ts]&&!_deletedLogTs[l.ts]){
         _supa.from('study_log').insert({user_id:_user.id,year:l.y,subject:l.subj,study_date:l.d,ts:l.ts}).then(function(){});
       }
     });
@@ -331,13 +343,16 @@ function deleteStudyLogEntry(ts){
   if(!confirm('이 기록을 삭제할까요?'))return;
   _studyLog.splice(_studyLog.findIndex(function(x){return x.ts===ts;}),1);
   saveStudyLog();
-  if(_supa&&_user){_supa.from('study_log').delete().eq('user_id',_user.id).eq('ts',ts).then(function(){});}
+  _deletedLogTs[ts]=true;saveDeletedLogTs();
+  if(_supa&&_user){_supa.from('study_log').delete().eq('user_id',_user.id).eq('ts',ts).then(function(r){if(r.error)console.error('학습일지 삭제 실패:',r.error);});}
   showStudyLog();
 }
 function clearAllStudyLog(){
   if(!confirm('모든 학습일지를 삭제할까요?'))return;
+  _studyLog.forEach(function(l){_deletedLogTs[l.ts]=true;});
+  saveDeletedLogTs();
   _studyLog=[];saveStudyLog();
-  if(_supa&&_user){_supa.from('study_log').delete().eq('user_id',_user.id).then(function(){});}
+  if(_supa&&_user){_supa.from('study_log').delete().eq('user_id',_user.id).then(function(r){if(r.error)console.error('학습일지 전체삭제 실패:',r.error);});}
   showStudyLog();
 }
 function loadMemos(){try{_memos=JSON.parse(localStorage.getItem('gh_memo')||'[]');}catch(e){_memos=[];}}
