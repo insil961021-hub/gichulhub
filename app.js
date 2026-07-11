@@ -504,6 +504,10 @@ function deleteMemo(ts){
 }
 // ── 핵심노트 (자유 기록형 나만의 오답노트) ──────────────────
 var _wnExpanded={};var _wnStarredOnly=false;var _wnShowMastered=false;
+var _deletedWnIds={};
+function loadDeletedWnIds(){try{_deletedWnIds=JSON.parse(localStorage.getItem('gh_wn_del')||'{}');}catch(e){_deletedWnIds={};}}
+function saveDeletedWnIds(){try{localStorage.setItem('gh_wn_del',JSON.stringify(_deletedWnIds));}catch(e){}}
+loadDeletedWnIds();
 function loadWrongNotes(){
   try{
     _wrongNotes=JSON.parse(localStorage.getItem('gh_wrongnote')||'[]');
@@ -616,14 +620,21 @@ function loadWrongNotesFromSupa(){
         order:(r.order_idx!==undefined&&r.order_idx!==null)?r.order_idx:r.id
       };
     });
+    supaNotes=supaNotes.filter(function(n){
+      if(_deletedWnIds[n.id]){
+        _supa.from('wrong_notes').delete().eq('user_id',_user.id).eq('id',n.id).then(function(r){if(r.error)console.error('핵심노트 재삭제 실패:',r.error);});
+        return false;
+      }
+      return true;
+    });
     var merged={};
-    _wrongNotes.forEach(function(n){merged[n.id]=n;});
+    _wrongNotes.forEach(function(n){if(!_deletedWnIds[n.id])merged[n.id]=n;});
     supaNotes.forEach(function(n){merged[n.id]=n;});
     _wrongNotes=Object.keys(merged).map(function(k){return merged[k];}).sort(function(a,b){return b.id-a.id;});
     var supaIdSet={};result.data.forEach(function(r){supaIdSet[r.id]=true;});
     _wrongNotes.forEach(function(n){
-      if(!supaIdSet[n.id]){
-        _supa.from('wrong_notes').insert({id:n.id,user_id:_user.id,subject:n.subject||'',title:n.title||'',items:n.items||[],summary:n.summary||'',source:n.source||'',tags:(n.tags||[]).join(','),starred:!!n.starred,mastered:!!n.mastered,order_idx:n.order!==undefined?n.order:n.id}).then(function(){});
+      if(!supaIdSet[n.id]&&!_deletedWnIds[n.id]){
+        _supa.from('wrong_notes').insert({id:n.id,user_id:_user.id,subject:n.subject||'',title:n.title||'',items:n.items||[],summary:n.summary||'',source:n.source||'',tags:(n.tags||[]).join(','),starred:!!n.starred,mastered:!!n.mastered,order_idx:n.order!==undefined?n.order:n.id}).then(function(r){if(r.error)console.error('핵심노트 재업로드 실패:',r.error);});
       }
     });
     saveWrongNotesLocal();
@@ -682,8 +693,8 @@ function moveWnNote(id,dir,ev){
   b.order=tmp;
   saveWrongNotesLocal();
   if(_supa&&_user){
-    _supa.from('wrong_notes').update({order_idx:a.order}).eq('user_id',_user.id).eq('id',a.id).then(function(){});
-    _supa.from('wrong_notes').update({order_idx:b.order}).eq('user_id',_user.id).eq('id',b.id).then(function(){});
+    _supa.from('wrong_notes').update({order_idx:a.order}).eq('user_id',_user.id).eq('id',a.id).then(function(r){if(r.error){console.error('핵심노트 순서 저장 실패:',r.error);alert('⚠️ 순서가 이 기기에는 저장됐지만 클라우드 저장에는 실패했어요. 새로고침하면 다시 원래대로 돌아올 수 있어요.\n(오류: '+(r.error.message||r.error.code||'알 수 없음')+')');}});
+    _supa.from('wrong_notes').update({order_idx:b.order}).eq('user_id',_user.id).eq('id',b.id).then(function(r){if(r.error)console.error('핵심노트 순서 저장 실패:',r.error);});
   }
   showWrongNoteList();
 }
@@ -926,8 +937,16 @@ function deleteWrongNote(id){
   if(!confirm('이 핵심노트를 삭제할까요?'))return;
   var idx=_wrongNotes.findIndex(function(x){return x.id===id;});
   if(idx>=0)_wrongNotes.splice(idx,1);
+  _deletedWnIds[id]=true;saveDeletedWnIds();
   saveWrongNotesLocal();
-  if(_supa&&_user){_supa.from('wrong_notes').delete().eq('user_id',_user.id).eq('id',id).then(function(){});}
+  if(_supa&&_user){
+    _supa.from('wrong_notes').delete().eq('user_id',_user.id).eq('id',id).then(function(r){
+      if(r.error){
+        console.error('핵심노트 삭제 실패:',r.error);
+        alert('⚠️ 이 기기에서는 삭제됐지만 클라우드에서는 삭제에 실패했어요. (오류: '+(r.error.message||r.error.code||'알 수 없음')+')\n다른 기기와 동기화할 때 되살아날 수 있으니 Supabase의 wrong_notes 삭제 권한(RLS)을 확인해주세요.');
+      }
+    });
+  }
   showWrongNoteList();
 }
 function toggleSkip(key){
