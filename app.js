@@ -534,10 +534,46 @@ function renderNoteInline(s){
   h=h.replace(/!!(.+?)!!/g,'<span style="color:#ef4444;font-weight:700">$1</span>');
   return h;
 }
+function isTableRowLine(line){
+  var t=(line||'').replace(/^\s+|\s+$/g,'');
+  return t.length>1&&t.charAt(0)==='|';
+}
+function renderNoteTable(tableLines){
+  var h='<table style="width:100%;border-collapse:collapse;margin:8px 0;font-size:13px">';
+  tableLines.forEach(function(line,ri){
+    var t=line.replace(/^\s+|\s+$/g,'');
+    var cells=t.split('|');
+    if(cells.length&&cells[0]==='')cells.shift();
+    if(cells.length&&cells[cells.length-1]==='')cells.pop();
+    h+='<tr>';
+    cells.forEach(function(c){
+      var cellHtml=renderNoteInline(c.replace(/^\s+|\s+$/g,''));
+      if(ri===0){
+        h+='<td style="border:1px solid #c7d2fe;padding:6px 8px;background:#eef2ff;font-weight:700;color:#1e293b">'+cellHtml+'</td>';
+      }else{
+        h+='<td style="border:1px solid #e2e8f0;padding:6px 8px;color:#1e293b">'+cellHtml+'</td>';
+      }
+    });
+    h+='</tr>';
+  });
+  h+='</table>';
+  return h;
+}
 function renderNoteText(s){
   var lines=(s||'').split('\n');
   var out='';
-  lines.forEach(function(line,i){
+  var i=0;
+  while(i<lines.length){
+    var line=lines[i];
+    if(isTableRowLine(line)){
+      var tableLines=[];
+      while(i<lines.length&&isTableRowLine(lines[i])){
+        tableLines.push(lines[i]);
+        i++;
+      }
+      out+=renderNoteTable(tableLines);
+      continue;
+    }
     var isHeader=/^#\s+/.test(line);
     var content=isHeader?line.replace(/^#\s+/,''):line;
     var h=renderNoteInline(content);
@@ -546,7 +582,8 @@ function renderNoteText(s){
     }else{
       out+=h+(i<lines.length-1?'<br>':'');
     }
-  });
+    i++;
+  }
   return out;
 }
 function renderNoteItems(items){
@@ -586,6 +623,7 @@ function renderWnItemsBlock(n){
       h+='<button type="button" onclick="wrapTextareaSelection(\''+eid+'Text\',\'==\',\'==\')" style="padding:2px 8px;border:1.5px solid #fde68a;border-radius:6px;background:#fffbeb;font-size:11px;font-weight:700;cursor:pointer;color:#92400e">&#x1F58D;&#xFE0F;</button>';
       h+='<button type="button" onclick="insertAtCursor(\''+eid+'Text\',\'m\\u00b2\')" style="padding:2px 8px;border:1.5px solid #e2e8f0;border-radius:6px;background:#fff;font-size:11px;font-weight:700;cursor:pointer">m&#xB2;</button>';
       h+='<button type="button" onclick="insertAtCursor(\''+eid+'Text\',\'\\u00b7\')" style="padding:2px 8px;border:1.5px solid #e2e8f0;border-radius:6px;background:#fff;font-size:11px;font-weight:700;cursor:pointer">&#xB7;</button>';
+      h+='<button type="button" onclick="insertAtCursor(\''+eid+'Text\',\'\\n|구분|내용|\\n|항목1|내용1|\\n\')" style="padding:2px 8px;border:1.5px solid #c7d2fe;border-radius:6px;background:#eef2ff;font-size:11px;font-weight:700;cursor:pointer;color:#4338ca">&#x1F4CA;</button>';
       h+='</div>';
       h+='<textarea id="'+eid+'Text" oninput="updateWnPreview(\''+eid+'Text\')" placeholder="지문/문장을 입력하세요" style="width:100%;min-height:60px;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13.5px;line-height:1.6;resize:vertical;box-sizing:border-box;font-family:inherit;margin-bottom:6px;background:#fff">'+escPlain(it.text)+'</textarea>';
       h+='<div id="'+eid+'TextPreview" style="margin-bottom:8px;padding:8px 10px;background:#fff;border:1px dashed #e2e8f0;border-radius:8px;font-size:13px;line-height:1.6;color:#1e293b">'+(it.text?renderNoteText(it.text):'<span style="color:#cbd5e1">미리보기가 여기 표시돼요</span>')+'</div>';
@@ -991,8 +1029,9 @@ function renderWnForm(){
   h+='<button type="button" onclick="wrapTextareaSelection(\'wnSummary\',\'!!\',\'!!\')" style="padding:4px 10px;border:1.5px solid #fecaca;border-radius:6px;background:#fef2f2;font-size:12px;font-weight:700;cursor:pointer;color:#ef4444">빨간글씨</button>';
   h+='<button type="button" onclick="insertAtCursor(\'wnSummary\',\'→ \')" style="padding:4px 10px;border:1.5px solid #e2e8f0;border-radius:6px;background:#f8fafc;font-size:12px;font-weight:700;cursor:pointer">→ 화살표</button>';
   h+='<button type="button" onclick="toggleNoteHeader(\'wnSummary\')" style="padding:4px 10px;border:1.5px solid #bfdbfe;border-radius:6px;background:#eff6ff;font-size:12px;font-weight:700;cursor:pointer;color:#2563eb">H 헤더</button>';
+  h+='<button type="button" onclick="insertAtCursor(\'wnSummary\',\'\\n|구분|내용|\\n|항목1|내용1|\\n|항목2|내용2|\\n\')" style="padding:4px 10px;border:1.5px solid #c7d2fe;border-radius:6px;background:#eef2ff;font-size:12px;font-weight:700;cursor:pointer;color:#4338ca">&#x1F4CA; 표</button>';
   h+='</div>';
-  h+='<div style="font-size:11px;color:#94a3b8;margin-bottom:6px">💡 헤더는 커서가 있는 줄 전체에 적용돼요</div>';
+  h+='<div style="font-size:11px;color:#94a3b8;margin-bottom:6px">💡 헤더는 커서가 있는 줄 전체에 적용돼요 · 표는 |내용|내용| 형태로 줄마다 채우면 돼요 (첫 줄=제목행)</div>';
   h+='<textarea id="wnSummary" oninput="updateWnPreview(\'wnSummary\')" placeholder="지문과 별개로 자유롭게 정리해보세요. 줄바꿈해도 지문처럼 버튼으로 나뉘지 않아요" style="width:100%;min-height:140px;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;line-height:1.75;resize:vertical;box-sizing:border-box;font-family:inherit;margin-bottom:8px">'+escPlain(_wnActive.summary)+'</textarea>';
   h+='<div id="wnSummaryPreview" style="margin-bottom:20px;padding:10px 12px;background:#fff;border:1px dashed #e2e8f0;border-radius:8px;font-size:14px;line-height:1.75;color:#1e293b">'+(_wnActive.summary?renderNoteText(_wnActive.summary):'<span style="color:#cbd5e1">미리보기가 여기 표시돼요</span>')+'</div>';
   h+='<label style="display:block;font-size:12px;font-weight:700;color:#2563eb;margin-bottom:8px">지문</label>';
@@ -1005,6 +1044,7 @@ function renderWnForm(){
     h+='<button type="button" onclick="wrapTextareaSelection(\'wnItemText'+i+'\',\'==\',\'==\')" style="padding:2px 8px;border:1.5px solid #fde68a;border-radius:6px;background:#fffbeb;font-size:11px;font-weight:700;cursor:pointer;color:#92400e">&#x1F58D;&#xFE0F;</button>';
     h+='<button type="button" onclick="insertAtCursor(\'wnItemText'+i+'\',\'m\\u00b2\')" style="padding:2px 8px;border:1.5px solid #e2e8f0;border-radius:6px;background:#fff;font-size:11px;font-weight:700;cursor:pointer">m&#xB2;</button>';
     h+='<button type="button" onclick="insertAtCursor(\'wnItemText'+i+'\',\'\\u00b7\')" style="padding:2px 8px;border:1.5px solid #e2e8f0;border-radius:6px;background:#fff;font-size:11px;font-weight:700;cursor:pointer">&#xB7;</button>';
+    h+='<button type="button" onclick="insertAtCursor(\'wnItemText'+i+'\',\'\\n|구분|내용|\\n|항목1|내용1|\\n\')" style="padding:2px 8px;border:1.5px solid #c7d2fe;border-radius:6px;background:#eef2ff;font-size:11px;font-weight:700;cursor:pointer;color:#4338ca">&#x1F4CA;</button>';
     if(_wnActive.items.length>1)h+='<button type="button" onclick="removeWnItem('+i+')" style="background:none;border:none;color:#cbd5e1;cursor:pointer;font-size:14px">✕</button>';
     h+='</div></div>';
     h+='<textarea id="wnItemText'+i+'" oninput="updateWnPreview(\'wnItemText'+i+'\')" placeholder="지문/문장을 입력하세요" style="width:100%;min-height:60px;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13.5px;line-height:1.6;resize:vertical;box-sizing:border-box;font-family:inherit;margin-bottom:6px;background:#fff">'+escPlain(it.text)+'</textarea>';
