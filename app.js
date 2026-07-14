@@ -978,11 +978,33 @@ function showWrongNoteList(){
   h+='</div>';
   document.getElementById('main').innerHTML=h;
 }
-function openWrongNoteForm(id){
-  _navMode='wrongnote';
+var _wnDraftRestored=false;
+function buildFreshWnActive(id){
   var n=id?_wrongNotes.find(function(x){return x.id===id;}):null;
   var items=n&&n.items&&n.items.length?n.items.map(function(it){return {text:it.text||'',reason:it.reason||'',starred:!!it.starred};}):[{text:'',reason:'',starred:false}];
-  _wnActive=n?{id:n.id,subject:n.subject||'',title:n.title||'',source:n.source||'',tagsStr:(n.tags||[]).join(' '),items:items,summary:n.summary||''}:{id:null,subject:_wnFilter||'',title:'',source:'',tagsStr:'',items:items,summary:''};
+  return n?{id:n.id,subject:n.subject||'',title:n.title||'',source:n.source||'',tagsStr:(n.tags||[]).join(' '),items:items,summary:n.summary||''}:{id:null,subject:_wnFilter||'',title:'',source:'',tagsStr:'',items:items,summary:''};
+}
+function loadWnDraft(){try{return JSON.parse(localStorage.getItem('gh_wn_draft')||'null');}catch(e){return null;}}
+function saveWnDraft(){try{localStorage.setItem('gh_wn_draft',JSON.stringify(_wnActive));}catch(e){}}
+function clearWnDraft(){try{localStorage.removeItem('gh_wn_draft');}catch(e){}}
+function syncAndSaveWnDraft(){syncWnFormToActive();saveWnDraft();}
+function discardWnDraft(){
+  clearWnDraft();
+  _wnDraftRestored=false;
+  _wnActive=buildFreshWnActive(_wnActive.id);
+  renderWnForm();
+}
+function openWrongNoteForm(id){
+  _navMode='wrongnote';
+  var fresh=buildFreshWnActive(id);
+  var draft=loadWnDraft();
+  if(draft&&(draft.id||null)===(id||null)){
+    _wnActive=draft;
+    _wnDraftRestored=true;
+  }else{
+    _wnActive=fresh;
+    _wnDraftRestored=false;
+  }
   renderWnForm();
 }
 function syncWnFormToActive(){
@@ -1000,28 +1022,35 @@ function syncWnFormToActive(){
 function addWnItem(){
   syncWnFormToActive();
   _wnActive.items.push({text:'',reason:'',starred:false});
+  saveWnDraft();
   renderWnForm();
 }
 function removeWnItem(idx){
   syncWnFormToActive();
   if(_wnActive.items.length<=1)return;
   _wnActive.items.splice(idx,1);
+  saveWnDraft();
   renderWnForm();
+}
+function cancelWnForm(){
+  clearWnDraft();
+  showWrongNoteList();
 }
 function renderWnForm(){
   var nid=_wnActive.id;
   renderSidebar();
   var h='<div class="page-header"><h1>'+(nid?'&#x270F;&#xFE0F; 핵심노트 수정':'&#x270D;&#xFE0F; 새 핵심노트')+'</h1></div>';
   h+='<div style="max-width:640px;margin:0 auto">';
-  h+='<button onclick="showWrongNoteList()" style="margin-bottom:14px;padding:6px 14px;background:#f1f5f9;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">← 목록으로</button>';
+  h+='<button onclick="cancelWnForm()" style="margin-bottom:14px;padding:6px 14px;background:#f1f5f9;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">← 목록으로</button>';
+  if(_wnDraftRestored)h+='<div style="background:#fffbeb;border:1.5px solid #fde68a;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12.5px;color:#92400e;display:flex;justify-content:space-between;align-items:center;gap:8px"><span>&#x1F4DD; 이전에 작성하다 나간 내용을 불러왔어요</span><button type="button" onclick="discardWnDraft()" style="background:none;border:1.5px solid #f59e0b;border-radius:6px;padding:3px 10px;font-size:11.5px;font-weight:700;cursor:pointer;color:#92400e;flex-shrink:0">새로 작성</button></div>';
   h+='<div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:22px">';
   h+='<label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:6px">과목 (선택)</label>';
-  h+='<input list="wnSubjList" id="wnSubject" value="'+escPlain(_wnActive.subject)+'" placeholder="예: 부동산공법" style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;margin-bottom:16px;box-sizing:border-box">';
+  h+='<input list="wnSubjList" id="wnSubject" oninput="syncAndSaveWnDraft()" value="'+escPlain(_wnActive.subject)+'" placeholder="예: 부동산공법" style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;margin-bottom:16px;box-sizing:border-box">';
   h+='<datalist id="wnSubjList">';
   getAllSubjectNames().forEach(function(s){h+='<option value="'+escPlain(s.name)+'">';});
   h+='</datalist>';
   h+='<label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:6px">제목</label>';
-  h+='<input id="wnTitle" value="'+escPlain(_wnActive.title)+'" placeholder="예: 개발진흥지구 관련 헷갈림" style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:15px;font-weight:600;margin-bottom:16px;box-sizing:border-box">';
+  h+='<input id="wnTitle" oninput="syncAndSaveWnDraft()" value="'+escPlain(_wnActive.title)+'" placeholder="예: 개발진흥지구 관련 헷갈림" style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:15px;font-weight:600;margin-bottom:16px;box-sizing:border-box">';
   h+='<label style="display:block;font-size:12px;font-weight:700;color:#2563eb;margin-bottom:6px">&#x1F4A1; 요점정리 (선택, 자유 작성)</label>';
   h+='<div style="display:flex;gap:6px;margin-bottom:6px">';
   h+='<button type="button" onclick="wrapTextareaSelection(\'wnSummary\',\'**\',\'**\')" style="padding:4px 10px;border:1.5px solid #e2e8f0;border-radius:6px;background:#f8fafc;font-size:12px;font-weight:700;cursor:pointer">B 굵게</button>';
@@ -1032,7 +1061,7 @@ function renderWnForm(){
   h+='<button type="button" onclick="insertAtCursor(\'wnSummary\',\'\\n|구분|내용|\\n|항목1|내용1|\\n|항목2|내용2|\\n\')" style="padding:4px 10px;border:1.5px solid #c7d2fe;border-radius:6px;background:#eef2ff;font-size:12px;font-weight:700;cursor:pointer;color:#4338ca">&#x1F4CA; 표</button>';
   h+='</div>';
   h+='<div style="font-size:11px;color:#94a3b8;margin-bottom:6px">💡 헤더는 커서가 있는 줄 전체에 적용돼요 · 표는 |내용|내용| 형태로 줄마다 채우면 돼요 (첫 줄=제목행)</div>';
-  h+='<textarea id="wnSummary" oninput="updateWnPreview(\'wnSummary\')" placeholder="지문과 별개로 자유롭게 정리해보세요. 줄바꿈해도 지문처럼 버튼으로 나뉘지 않아요" style="width:100%;min-height:140px;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;line-height:1.75;resize:vertical;box-sizing:border-box;font-family:inherit;margin-bottom:8px">'+escPlain(_wnActive.summary)+'</textarea>';
+  h+='<textarea id="wnSummary" oninput="updateWnPreview(\'wnSummary\');syncAndSaveWnDraft()" placeholder="지문과 별개로 자유롭게 정리해보세요. 줄바꿈해도 지문처럼 버튼으로 나뉘지 않아요" style="width:100%;min-height:140px;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;line-height:1.75;resize:vertical;box-sizing:border-box;font-family:inherit;margin-bottom:8px">'+escPlain(_wnActive.summary)+'</textarea>';
   h+='<div id="wnSummaryPreview" style="margin-bottom:20px;padding:10px 12px;background:#fff;border:1px dashed #e2e8f0;border-radius:8px;font-size:14px;line-height:1.75;color:#1e293b">'+(_wnActive.summary?renderNoteText(_wnActive.summary):'<span style="color:#cbd5e1">미리보기가 여기 표시돼요</span>')+'</div>';
   h+='<label style="display:block;font-size:12px;font-weight:700;color:#2563eb;margin-bottom:8px">지문</label>';
   _wnActive.items.forEach(function(it,i){
@@ -1047,26 +1076,26 @@ function renderWnForm(){
     h+='<button type="button" onclick="insertAtCursor(\'wnItemText'+i+'\',\'\\n|구분|내용|\\n|항목1|내용1|\\n\')" style="padding:2px 8px;border:1.5px solid #c7d2fe;border-radius:6px;background:#eef2ff;font-size:11px;font-weight:700;cursor:pointer;color:#4338ca">&#x1F4CA;</button>';
     if(_wnActive.items.length>1)h+='<button type="button" onclick="removeWnItem('+i+')" style="background:none;border:none;color:#cbd5e1;cursor:pointer;font-size:14px">✕</button>';
     h+='</div></div>';
-    h+='<textarea id="wnItemText'+i+'" oninput="updateWnPreview(\'wnItemText'+i+'\')" placeholder="지문/문장을 입력하세요" style="width:100%;min-height:60px;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13.5px;line-height:1.6;resize:vertical;box-sizing:border-box;font-family:inherit;margin-bottom:6px;background:#fff">'+escPlain(it.text)+'</textarea>';
+    h+='<textarea id="wnItemText'+i+'" oninput="updateWnPreview(\'wnItemText'+i+'\');syncAndSaveWnDraft()" placeholder="지문/문장을 입력하세요" style="width:100%;min-height:60px;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13.5px;line-height:1.6;resize:vertical;box-sizing:border-box;font-family:inherit;margin-bottom:6px;background:#fff">'+escPlain(it.text)+'</textarea>';
     h+='<div id="wnItemText'+i+'Preview" style="margin-bottom:8px;padding:8px 10px;background:#fff;border:1px dashed #e2e8f0;border-radius:8px;font-size:13px;line-height:1.6;color:#1e293b">'+(it.text?renderNoteText(it.text):'<span style="color:#cbd5e1">미리보기가 여기 표시돼요</span>')+'</div>';
     h+='<label style="display:block;font-size:11px;font-weight:700;color:#ef4444;margin-bottom:4px">&#x1F914; 틀린 이유 (선택)</label>';
-    h+='<input id="wnItemReason'+i+'" value="'+escPlain(it.reason)+'" placeholder="예: 3년/5년 숫자 헷갈림" style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;background:#fff">';
+    h+='<input id="wnItemReason'+i+'" oninput="syncAndSaveWnDraft()" value="'+escPlain(it.reason)+'" placeholder="예: 3년/5년 숫자 헷갈림" style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;background:#fff">';
     h+='</div>';
   });
   h+='<button type="button" onclick="addWnItem()" style="width:100%;padding:10px;background:#eff6ff;color:#2563eb;border:1.5px dashed #93c5fd;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:20px">&#x2795; 지문 추가</button>';
   h+='<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:6px">';
   h+='<div style="flex:1;min-width:160px">';
   h+='<label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:6px">출처 (선택)</label>';
-  h+='<input id="wnSource" value="'+escPlain(_wnActive.source)+'" placeholder="예: 34회 25번" style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13.5px;box-sizing:border-box">';
+  h+='<input id="wnSource" oninput="syncAndSaveWnDraft()" value="'+escPlain(_wnActive.source)+'" placeholder="예: 34회 25번" style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13.5px;box-sizing:border-box">';
   h+='</div>';
   h+='<div style="flex:1;min-width:160px">';
   h+='<label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:6px">태그 (공백으로 구분, 선택)</label>';
-  h+='<input id="wnTags" value="'+escPlain(_wnActive.tagsStr)+'" placeholder="예: 결격사유 숫자헷갈림" style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13.5px;box-sizing:border-box">';
+  h+='<input id="wnTags" oninput="syncAndSaveWnDraft()" value="'+escPlain(_wnActive.tagsStr)+'" placeholder="예: 결격사유 숫자헷갈림" style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13.5px;box-sizing:border-box">';
   h+='</div>';
   h+='</div>';
   h+='<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px">';
   if(nid)h+='<button onclick="deleteWrongNote('+nid+')" style="padding:9px 18px;background:#fef2f2;color:#ef4444;border:1.5px solid #fecaca;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">삭제</button>';
-  h+='<button onclick="showWrongNoteList()" style="padding:9px 18px;background:#f1f5f9;color:#475569;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">취소</button>';
+  h+='<button onclick="cancelWnForm()" style="padding:9px 18px;background:#f1f5f9;color:#475569;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">취소</button>';
   h+='<button onclick="saveWrongNote()" style="padding:9px 20px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">저장</button>';
   h+='</div></div></div>';
   document.getElementById('main').innerHTML=h;
@@ -1101,12 +1130,14 @@ function saveWrongNote(){
       }
     });
   }
+  clearWnDraft();
   showWrongNoteList();
 }
 function deleteWrongNote(id){
   if(!confirm('이 핵심노트를 삭제할까요?'))return;
   var idx=_wrongNotes.findIndex(function(x){return x.id===id;});
   if(idx>=0)_wrongNotes.splice(idx,1);
+  clearWnDraft();
   _deletedWnIds[id]=true;saveDeletedWnIds();
   saveWrongNotesLocal();
   if(_supa&&_user){
