@@ -2017,6 +2017,12 @@ function resetSubject(i,stayHere){
       },{onConflict:'user_id,year,subject,q_num'}).then(function(){});
     }
   });
+  Object.keys(_eliminations).forEach(function(ek){
+    var parts=ek.split('_');
+    if(parts[0]===(''+state.examYear)&&parts[1]===(''+i))delete _eliminations[ek];
+  });
+  saveElim();
+  if(_supa&&_user)saveUserMiscToSupa();
   state.currentQ=0;state.filter='all';
   saveS();
   if(stayHere){renderMain();renderSidebar();}else{showStats();}
