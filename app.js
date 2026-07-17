@@ -1461,6 +1461,7 @@ function syncFromSupa(){
   loadJijunCustomFromSupa();
   loadUserMiscFromSupa();
   loadMbProgressFromSupa();
+  loadBlankDocsFromSupa();
 }
 function toggleMenu(){
   var sd=document.getElementById('sidebar');
@@ -1712,6 +1713,7 @@ function renderSidebar(){
   h+='<div class="sidebar-item" onclick="showPdf();closeMenu()">📥 PDF 다운로드</div>';
   h+='<div class="sidebar-item" onclick="navTabJijun()">📋 기출지문</div>';
   h+='<div class="sidebar-item" onclick="showMemoList();closeMenu()">&#x1F4DD; 메모장'+(_memos.length?'<span class="sidebar-badge" style="background:#f59e0b">'+_memos.length+'</span>':'')+'</div>';
+  h+='<div class="sidebar-item" onclick="showBlankDocList();closeMenu()">&#x1F573;&#xFE0F; 빈칸연습'+(_blankDocs.length?'<span class="sidebar-badge" style="background:#0891b2">'+_blankDocs.length+'</span>':'')+'</div>';
   h+='</div>';
   h+='</div>';
   document.getElementById('sidebar').innerHTML=h;
@@ -2647,6 +2649,329 @@ function pickMb(key,c,ans){if(_mbAns[key]!==undefined)return;_mbAns[key]=c;saveM
 function toggleBmMb(key){_mbBm[key]=!_mbBm[key];saveMbProgress();renderMyBook();}
 function goToMb(i){_mbQ=i;renderMyBook();}
 function nextMb(){if(!_mbActive)return;if(_mbQ<_mbActive.questions.length-1){_mbQ++;renderMyBook();}else alert('마지막 문제예요!');}
+// ── 빈칸연습 (PDF 업로드 후 빈칸 뚫어 연습/인쇄) ──────────────────
+var _blankDocs=[];
+var _blankActive=null;
+var _blankPdfDoc=null;
+var _blankPageNum=1;
+var _blankMode='practice';
+var _blankRevealed={};
+var _blankSignedUrl=null;
+var _blankSaveTimer=null;
+if(typeof pdfjsLib!=='undefined'){
+  pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/legacy/build/pdf.worker.min.js';
+}
+function loadBlankDocsFromSupa(){
+  if(!_supa||!_user){_blankDocs=[];return;}
+  _supa.from('blank_docs').select('*').eq('user_id',_user.id).order('created_at',{ascending:false}).then(function(result){
+    if(result.error){console.error('빈칸 문서 목록 불러오기 실패:',result.error);return;}
+    _blankDocs=(result.data||[]).map(function(r){return {id:r.id,filename:r.filename||'',storage_path:r.storage_path,num_pages:r.num_pages||0,blanks:r.blanks||{}};});
+    if(_navMode==='blanklist')showBlankDocList();
+  });
+}
+function showBlankDocList(){
+  _navMode='blanklist';
+  renderSidebar();
+  var h='<div class="page-header"><h1>&#x1F573;&#xFE0F; 빈칸연습</h1><p>PDF를 올리고 원하는 부분에 빈칸을 뚫어서 연습하거나 인쇄해보세요</p></div>';
+  h+='<div style="max-width:700px;margin:0 auto">';
+  if(!_supa||!_user){
+    h+='<div class="empty"><div style="font-size:48px">&#x1F512;</div><p>로그인하면 사용할 수 있어요.<br>PDF를 클라우드에 저장해서 다른 기기에서도 이어서 연습할 수 있어요.</p></div></div>';
+    document.getElementById('main').innerHTML=h;
+    return;
+  }
+  h+='<div style="margin-bottom:16px">';
+  h+='<label style="display:inline-block;padding:10px 18px;background:#2563eb;color:#fff;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">&#x2795; PDF 업로드<input type="file" accept="application/pdf" onchange="uploadBlankDoc(this)" style="display:none"></label>';
+  h+='<span id="blankUploadStatus" style="margin-left:12px;font-size:12.5px;color:#94a3b8"></span>';
+  h+='</div>';
+  if(!_blankDocs.length){
+    h+='<div class="empty"><div style="font-size:48px">&#x1F4C4;</div><p>아직 업로드한 PDF가 없어요.</p></div>';
+  }else{
+    _blankDocs.forEach(function(d){
+      var blankCount=0;
+      Object.keys(d.blanks||{}).forEach(function(p){blankCount+=(d.blanks[p]||[]).length;});
+      h+='<div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:16px 18px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;gap:12px">';
+      h+='<div style="min-width:0"><div style="font-size:14.5px;font-weight:700;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(d.filename)+'</div>';
+      h+='<div style="font-size:12px;color:#94a3b8;margin-top:3px">'+(d.num_pages||'?')+'쪽 &middot; 빈칸 '+blankCount+'개</div></div>';
+      h+='<div style="display:flex;gap:6px;flex-shrink:0">';
+      h+='<button onclick="openBlankDoc('+d.id+')" style="padding:7px 14px;background:#eff6ff;color:#2563eb;border:1.5px solid #bfdbfe;border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap">열기</button>';
+      h+='<button onclick="deleteBlankDoc('+d.id+')" style="padding:7px 10px;background:#fef2f2;color:#ef4444;border:1.5px solid #fecaca;border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer">삭제</button>';
+      h+='</div></div>';
+    });
+  }
+  h+='</div>';
+  document.getElementById('main').innerHTML=h;
+}
+function uploadBlankDoc(input){
+  var file=input.files&&input.files[0];
+  if(!file)return;
+  if(file.type!=='application/pdf'&&!/\.pdf$/i.test(file.name)){alert('PDF 파일만 업로드할 수 있어요.');return;}
+  if(!_supa||!_user){alert('로그인이 필요해요.');return;}
+  var statusEl=document.getElementById('blankUploadStatus');
+  if(statusEl)statusEl.textContent='업로드 중...';
+  var id=Date.now();
+  var path=_user.id+'/'+id+'.pdf';
+  _supa.storage.from('blank-pdfs').upload(path,file,{upsert:true,contentType:'application/pdf'}).then(function(upRes){
+    if(upRes.error){
+      console.error('PDF 업로드 실패:',upRes.error);
+      alert('⚠️ 업로드에 실패했어요.\n(오류: '+(upRes.error.message||'알 수 없음')+')\nSupabase에 blank-pdfs 스토리지 버킷/권한이 설정됐는지 확인해주세요.');
+      if(statusEl)statusEl.textContent='';
+      return;
+    }
+    _supa.from('blank_docs').insert({id:id,user_id:_user.id,filename:file.name,storage_path:path,num_pages:0,blanks:{}}).then(function(insRes){
+      if(insRes.error){
+        console.error('빈칸 문서 등록 실패:',insRes.error);
+        alert('⚠️ 업로드된 파일 정보를 저장하지 못했어요.\n(오류: '+(insRes.error.message||'알 수 없음')+')');
+        if(statusEl)statusEl.textContent='';
+        return;
+      }
+      _blankDocs.unshift({id:id,filename:file.name,storage_path:path,num_pages:0,blanks:{}});
+      if(statusEl)statusEl.textContent='';
+      openBlankDoc(id);
+    });
+  });
+}
+function deleteBlankDoc(id){
+  if(!confirm('이 PDF와 빈칸 기록을 삭제할까요?'))return;
+  var d=_blankDocs.find(function(x){return x.id===id;});
+  if(!d)return;
+  _blankDocs=_blankDocs.filter(function(x){return x.id!==id;});
+  if(_supa&&_user){
+    _supa.storage.from('blank-pdfs').remove([d.storage_path]).then(function(r){if(r.error)console.error('파일 삭제 실패:',r.error);});
+    _supa.from('blank_docs').delete().eq('id',id).eq('user_id',_user.id).then(function(r){if(r.error)console.error('문서 삭제 실패:',r.error);});
+  }
+  showBlankDocList();
+}
+function getBlankSignedUrl(path,cb){
+  _supa.storage.from('blank-pdfs').createSignedUrl(path,3600).then(function(r){
+    if(r.error||!r.data){console.error('링크 생성 실패:',r.error);alert('파일을 불러오지 못했어요.');return;}
+    cb(r.data.signedUrl);
+  });
+}
+function openBlankDoc(id){
+  var d=_blankDocs.find(function(x){return x.id===id;});
+  if(!d)return;
+  _blankActive=d;
+  _blankPageNum=1;
+  _blankMode='practice';
+  _blankRevealed={};
+  _blankPdfDoc=null;
+  _blankSignedUrl=null;
+  _navMode='blankedit';
+  renderSidebar();
+  renderBlankEditorShell(true);
+  getBlankSignedUrl(d.storage_path,function(url){
+    _blankSignedUrl=url;
+    pdfjsLib.getDocument(url).promise.then(function(pdf){
+      _blankPdfDoc=pdf;
+      if(d.num_pages!==pdf.numPages){
+        d.num_pages=pdf.numPages;
+        if(_supa&&_user)_supa.from('blank_docs').update({num_pages:pdf.numPages}).eq('id',d.id).eq('user_id',_user.id).then(function(){});
+      }
+      renderBlankEditorShell();
+      renderBlankPage();
+    }).catch(function(e){
+      console.error('PDF 열기 실패:',e);
+      alert('PDF를 여는 데 실패했어요.');
+    });
+  });
+}
+function setBlankMode(m){_blankMode=m;renderBlankEditorShell();renderBlankPage();}
+function blankPrevPage(){if(_blankPageNum>1){_blankPageNum--;renderBlankEditorShell();renderBlankPage();}}
+function blankNextPage(){if(_blankPdfDoc&&_blankPageNum<_blankPdfDoc.numPages){_blankPageNum++;renderBlankEditorShell();renderBlankPage();}}
+function renderBlankEditorShell(loading){
+  var d=_blankActive;
+  if(!d)return;
+  var h='<div class="page-header"><h1>'+esc(d.filename)+'</h1></div>';
+  h+='<div style="max-width:820px;margin:0 auto">';
+  h+='<button onclick="showBlankDocList()" style="margin-bottom:14px;padding:6px 14px;background:#f1f5f9;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">← 목록으로</button>';
+  h+='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px">';
+  h+='<button class="filter-btn'+(_blankMode==='practice'?' active':'')+'" onclick="setBlankMode(\'practice\')">&#x1F4DD; 연습</button>';
+  h+='<button class="filter-btn'+(_blankMode==='edit'?' active':'')+'" onclick="setBlankMode(\'edit\')">&#x270F;&#xFE0F; 빈칸 편집</button>';
+  h+='<button onclick="exportBlankPdf()" style="padding:5px 14px;border-radius:20px;font-size:13px;font-weight:700;cursor:pointer;border:1.5px solid #c7d2fe;background:#eef2ff;color:#4338ca">&#x1F4C4; 빈칸 PDF로 저장</button>';
+  h+='</div>';
+  if(_blankMode==='edit')h+='<div style="font-size:12px;color:#94a3b8;margin-bottom:10px">💡 가리고 싶은 부분을 드래그하면 빈칸이 생겨요. 빈칸을 다시 누르면 지워져요.</div>';
+  else h+='<div style="font-size:12px;color:#94a3b8;margin-bottom:10px">💡 빈칸을 누르면 정답이 살짝 보여요. 다시 누르면 가려져요. (인쇄용 PDF는 항상 빈칸으로 저장돼요)</div>';
+  h+='<div style="display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:10px">';
+  h+='<button onclick="blankPrevPage()" style="padding:6px 12px;border:1.5px solid #e2e8f0;border-radius:8px;background:#fff;cursor:pointer;font-weight:700">◀</button>';
+  h+='<span style="font-size:13px;font-weight:700;color:#475569">'+_blankPageNum+' / '+(d.num_pages||'?')+'</span>';
+  h+='<button onclick="blankNextPage()" style="padding:6px 12px;border:1.5px solid #e2e8f0;border-radius:8px;background:#fff;cursor:pointer;font-weight:700">▶</button>';
+  h+='</div>';
+  h+='<div style="display:flex;justify-content:center;overflow-x:auto">';
+  h+='<div id="blankStage" style="position:relative;display:inline-block;box-shadow:0 2px 12px rgba(0,0,0,0.12);background:#fff">';
+  h+='<canvas id="blankCanvas"></canvas>';
+  h+='<div id="blankOverlay" style="position:absolute;top:0;left:0"></div>';
+  h+='</div>';
+  h+='</div>';
+  if(loading)h+='<div style="text-align:center;padding:20px;color:#94a3b8">불러오는 중...</div>';
+  h+='</div>';
+  document.getElementById('main').innerHTML=h;
+  if(!loading)setupBlankDrawEvents();
+}
+function renderBlankPage(){
+  if(!_blankPdfDoc)return;
+  _blankPdfDoc.getPage(_blankPageNum).then(function(page){
+    var baseVp=page.getViewport({scale:1});
+    var maxW=Math.min(760,(window.innerWidth||800)-40);
+    var scale=maxW/baseVp.width;
+    var viewport=page.getViewport({scale:scale});
+    var canvas=document.getElementById('blankCanvas');
+    if(!canvas)return;
+    canvas.width=viewport.width;
+    canvas.height=viewport.height;
+    canvas.style.width=viewport.width+'px';
+    canvas.style.height=viewport.height+'px';
+    var ctx=canvas.getContext('2d');
+    page.render({canvasContext:ctx,viewport:viewport}).promise.then(function(){
+      renderBlankOverlays();
+    });
+  });
+}
+function renderBlankOverlays(){
+  var canvas=document.getElementById('blankCanvas');
+  var overlay=document.getElementById('blankOverlay');
+  var stage=document.getElementById('blankStage');
+  if(!canvas||!overlay||!stage)return;
+  var w=canvas.width,hh=canvas.height;
+  var list=(_blankActive.blanks&&_blankActive.blanks[_blankPageNum])||[];
+  var h='';
+  list.forEach(function(b,idx){
+    var revealed=!!_blankRevealed[_blankPageNum+'_'+idx];
+    var left=(b.x*w),top=(b.y*hh),bw=(b.w*w),bh=(b.h*hh);
+    var bg=revealed?'rgba(37,99,235,0.10)':'#1e293b';
+    var border=revealed?'1.5px dashed #93c5fd':'1.5px solid #0f172a';
+    h+='<div onclick="onBlankClick('+idx+',event)" style="position:absolute;left:'+left+'px;top:'+top+'px;width:'+bw+'px;height:'+bh+'px;background:'+bg+';border:'+border+';border-radius:3px;cursor:pointer"></div>';
+  });
+  overlay.innerHTML=h;
+  overlay.style.width=w+'px';
+  overlay.style.height=hh+'px';
+  stage.style.width=w+'px';
+  stage.style.height=hh+'px';
+}
+function onBlankClick(idx,ev){
+  if(ev)ev.stopPropagation();
+  if(_blankMode==='edit'){
+    if(!confirm('이 빈칸을 삭제할까요?'))return;
+    _blankActive.blanks[_blankPageNum].splice(idx,1);
+    saveBlankDoc();
+    renderBlankOverlays();
+  }else{
+    var key=_blankPageNum+'_'+idx;
+    _blankRevealed[key]=!_blankRevealed[key];
+    renderBlankOverlays();
+  }
+}
+function saveBlankDoc(){
+  clearTimeout(_blankSaveTimer);
+  _blankSaveTimer=setTimeout(function(){
+    if(!_supa||!_user||!_blankActive)return;
+    _supa.from('blank_docs').update({blanks:_blankActive.blanks}).eq('id',_blankActive.id).eq('user_id',_user.id).then(function(r){
+      if(r.error){
+        console.error('빈칸 저장 실패:',r.error);
+        alert('⚠️ 빈칸 저장에 실패했어요. (오류: '+(r.error.message||'알 수 없음')+')');
+      }
+    });
+  },500);
+}
+function setupBlankDrawEvents(){
+  var overlay=document.getElementById('blankOverlay');
+  if(!overlay)return;
+  var drawing=null;
+  function getPos(ev){
+    var rect=overlay.getBoundingClientRect();
+    var cx=(ev.touches&&ev.touches.length?ev.touches[0].clientX:ev.clientX)-rect.left;
+    var cy=(ev.touches&&ev.touches.length?ev.touches[0].clientY:ev.clientY)-rect.top;
+    return {x:cx,y:cy};
+  }
+  function updateDrawBox(){
+    var box=document.getElementById('blankDrawBox');
+    if(!box){
+      box=document.createElement('div');
+      box.id='blankDrawBox';
+      box.style.position='absolute';
+      box.style.border='1.5px dashed #2563eb';
+      box.style.background='rgba(37,99,235,0.15)';
+      box.style.pointerEvents='none';
+      overlay.appendChild(box);
+    }
+    var x=Math.min(drawing.x0,drawing.x1),y=Math.min(drawing.y0,drawing.y1);
+    var w=Math.abs(drawing.x1-drawing.x0),hh=Math.abs(drawing.y1-drawing.y0);
+    box.style.left=x+'px';box.style.top=y+'px';box.style.width=w+'px';box.style.height=hh+'px';
+  }
+  function start(ev){
+    if(_blankMode!=='edit')return;
+    if(ev.target!==overlay)return;
+    ev.preventDefault();
+    var p=getPos(ev);
+    drawing={x0:p.x,y0:p.y,x1:p.x,y1:p.y};
+    updateDrawBox();
+  }
+  function move(ev){
+    if(!drawing)return;
+    ev.preventDefault();
+    var p=getPos(ev);
+    drawing.x1=p.x;drawing.y1=p.y;
+    updateDrawBox();
+  }
+  function end(){
+    if(!drawing)return;
+    var x=Math.min(drawing.x0,drawing.x1),y=Math.min(drawing.y0,drawing.y1);
+    var w=Math.abs(drawing.x1-drawing.x0),hh=Math.abs(drawing.y1-drawing.y0);
+    drawing=null;
+    var box=document.getElementById('blankDrawBox');
+    if(box&&box.parentNode)box.parentNode.removeChild(box);
+    if(w<6||hh<6)return;
+    var canvas=document.getElementById('blankCanvas');
+    if(!canvas)return;
+    var cw=canvas.width,ch=canvas.height;
+    var rect={x:x/cw,y:y/ch,w:w/cw,h:hh/ch};
+    if(!_blankActive.blanks)_blankActive.blanks={};
+    if(!_blankActive.blanks[_blankPageNum])_blankActive.blanks[_blankPageNum]=[];
+    _blankActive.blanks[_blankPageNum].push(rect);
+    saveBlankDoc();
+    renderBlankOverlays();
+  }
+  overlay.addEventListener('mousedown',start);
+  overlay.addEventListener('mousemove',move);
+  overlay.addEventListener('mouseup',end);
+  overlay.addEventListener('touchstart',start,{passive:false});
+  overlay.addEventListener('touchmove',move,{passive:false});
+  overlay.addEventListener('touchend',end);
+}
+function exportBlankPdf(){
+  var d=_blankActive;
+  if(!d)return;
+  if(!_blankSignedUrl){alert('파일을 아직 불러오는 중이에요. 잠시 후 다시 시도해주세요.');return;}
+  fetch(_blankSignedUrl).then(function(res){return res.arrayBuffer();}).then(function(bytes){
+    return PDFLib.PDFDocument.load(bytes,{ignoreEncryption:true});
+  }).then(function(pdfDoc){
+    var pages=pdfDoc.getPages();
+    Object.keys(d.blanks||{}).forEach(function(pNumStr){
+      var pIdx=parseInt(pNumStr,10)-1;
+      var page=pages[pIdx];
+      if(!page)return;
+      var pw=page.getWidth(),ph=page.getHeight();
+      (d.blanks[pNumStr]||[]).forEach(function(b){
+        var rx=b.x*pw,rw=b.w*pw,rh=b.h*ph;
+        var ry=ph-(b.y+b.h)*ph;
+        page.drawRectangle({x:rx,y:ry,width:rw,height:rh,color:PDFLib.rgb(1,1,1),borderColor:PDFLib.rgb(0.7,0.7,0.7),borderWidth:1});
+      });
+    });
+    return pdfDoc.save();
+  }).then(function(outBytes){
+    var blob=new Blob([outBytes],{type:'application/pdf'});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');
+    a.href=url;
+    a.download=(d.filename||'blank').replace(/\.pdf$/i,'')+'_빈칸.pdf';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function(){URL.revokeObjectURL(url);},2000);
+  }).catch(function(e){
+    console.error('PDF 내보내기 실패:',e);
+    alert('PDF를 만드는 데 실패했어요.');
+  });
+}
 if(_supa){
   _supa.auth.onAuthStateChange(function(event,session){
     _user=session?session.user:null;
