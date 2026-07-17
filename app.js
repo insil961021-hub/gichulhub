@@ -2663,6 +2663,10 @@ var _blankSignedUrl=null;
 var _blankSaveTimer=null;
 var _blankDrawType='box';
 function setBlankDrawType(t){_blankDrawType=t;renderBlankEditorShell();renderBlankPage();}
+function blankTypeBtnStyle(t){
+  var on=_blankDrawType===t;
+  return 'padding:4px 12px;border-radius:16px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid '+(on?'#2563eb':'#e2e8f0')+';background:'+(on?'#eff6ff':'#fff')+';color:'+(on?'#2563eb':'#64748b');
+}
 if(typeof pdfjsLib!=='undefined'){
   pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/legacy/build/pdf.worker.min.js';
 }
@@ -2796,12 +2800,16 @@ function renderBlankEditorShell(loading){
   h+='</div>';
   if(_blankMode==='edit'){
     h+='<div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-wrap:wrap">';
-    h+='<span style="font-size:12px;color:#64748b">빈칸 모양:</span>';
-    h+='<button onclick="setBlankDrawType(\'box\')" style="padding:4px 12px;border-radius:16px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid '+(_blankDrawType==='box'?'#2563eb':'#e2e8f0')+';background:'+(_blankDrawType==='box'?'#eff6ff':'#fff')+';color:'+(_blankDrawType==='box'?'#2563eb':'#64748b')+'">&#x25A2; 네모</button>';
-    h+='<button onclick="setBlankDrawType(\'white\')" style="padding:4px 12px;border-radius:16px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid '+(_blankDrawType==='white'?'#2563eb':'#e2e8f0')+';background:'+(_blankDrawType==='white'?'#eff6ff':'#fff')+';color:'+(_blankDrawType==='white'?'#2563eb':'#64748b')+'">&#x2B1C; 하얀 빈칸</button>';
-    h+='<button onclick="setBlankDrawType(\'underline\')" style="padding:4px 12px;border-radius:16px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid '+(_blankDrawType==='underline'?'#2563eb':'#e2e8f0')+';background:'+(_blankDrawType==='underline'?'#eff6ff':'#fff')+';color:'+(_blankDrawType==='underline'?'#2563eb':'#64748b')+'">&#x2015; 밑줄</button>';
+    h+='<span style="font-size:12px;color:#64748b">도구:</span>';
+    h+='<button onclick="setBlankDrawType(\'box\')" style="'+blankTypeBtnStyle('box')+'">&#x25A2; 네모</button>';
+    h+='<button onclick="setBlankDrawType(\'white\')" style="'+blankTypeBtnStyle('white')+'">&#x2B1C; 하얀 빈칸</button>';
+    h+='<button onclick="setBlankDrawType(\'underline\')" style="'+blankTypeBtnStyle('underline')+'">&#x2015; 밑줄</button>';
+    h+='<button onclick="setBlankDrawType(\'star\')" style="'+blankTypeBtnStyle('star')+'">⭐ 별</button>';
+    h+='<button onclick="setBlankDrawType(\'text\')" style="'+blankTypeBtnStyle('text')+'">&#x270F;&#xFE0F; 텍스트</button>';
     h+='</div>';
-    h+='<div style="font-size:12px;color:#94a3b8;margin-bottom:10px">💡 가리고 싶은 부분을 드래그하면 위에서 고른 모양으로 빈칸이 생겨요. 빈칸을 다시 누르면 바로 지워져요.</div>';
+    if(_blankDrawType==='star')h+='<div style="font-size:12px;color:#94a3b8;margin-bottom:10px">💡 별을 찍고 싶은 곳을 누르면 ⭐가 붙어요. 다시 누르면 지워져요.</div>';
+    else if(_blankDrawType==='text')h+='<div style="font-size:12px;color:#94a3b8;margin-bottom:10px">💡 글자를 넣고 싶은 곳을 누르면 입력창이 떠요. 다시 누르면 지워져요.</div>';
+    else h+='<div style="font-size:12px;color:#94a3b8;margin-bottom:10px">💡 가리고 싶은 부분을 드래그하면 위에서 고른 모양으로 빈칸이 생겨요. 빈칸을 다시 누르면 바로 지워져요.</div>';
   }else{
     h+='<div style="font-size:12px;color:#94a3b8;margin-bottom:10px">💡 빈칸을 누르면 정답이 살짝 보여요. 다시 누르면 가려져요. (인쇄용 PDF는 항상 빈칸으로 저장돼요)</div>';
   }
@@ -2849,8 +2857,19 @@ function renderBlankOverlays(){
   var list=(_blankActive.blanks&&_blankActive.blanks[_blankPageNum])||[];
   var h='';
   list.forEach(function(b,idx){
-    var revealed=!!_blankRevealed[_blankPageNum+'_'+idx];
     var left=(b.x*w),top=(b.y*hh),bw=(b.w*w),bh=(b.h*hh);
+    var kind=b.kind||'blank';
+    var clickAttr=_blankMode==='edit'?' onclick="onBlankClick('+idx+',event)"':'';
+    var cursor=_blankMode==='edit'?'pointer':'default';
+    if(kind==='star'){
+      h+='<div'+clickAttr+' style="position:absolute;left:'+left+'px;top:'+top+'px;width:'+bw+'px;height:'+bh+'px;display:flex;align-items:center;justify-content:center;font-size:'+bh+'px;line-height:1;cursor:'+cursor+';user-select:none">⭐</div>';
+      return;
+    }
+    if(kind==='text'){
+      h+='<div'+clickAttr+' style="position:absolute;left:'+left+'px;top:'+top+'px;width:'+bw+'px;height:'+bh+'px;display:flex;align-items:center;justify-content:flex-start;background:rgba(255,255,255,0.9);border:1px dashed #94a3b8;border-radius:3px;font-size:'+(bh*0.65)+'px;font-weight:700;color:#1e293b;cursor:'+cursor+';overflow:hidden;white-space:nowrap;box-sizing:border-box;padding:0 3px">'+esc(b.text||'')+'</div>';
+      return;
+    }
+    var revealed=!!_blankRevealed[_blankPageNum+'_'+idx];
     var type=b.type||'box';
     var extra='';
     if(revealed){
@@ -2894,6 +2913,27 @@ function saveBlankDoc(){
     });
   },500);
 }
+function placeBlankStamp(p,kind,text){
+  var canvas=document.getElementById('blankCanvas');
+  if(!canvas)return;
+  var cw=canvas.width,ch=canvas.height;
+  var w,h;
+  if(kind==='star'){
+    w=Math.max(28,cw*0.035);
+    h=w;
+  }else{
+    var len=(text||'').length;
+    w=Math.min(cw*0.6,Math.max(60,len*11));
+    h=Math.max(26,cw*0.03);
+  }
+  var rect={x:(p.x-w/2)/cw,y:(p.y-h/2)/ch,w:w/cw,h:h/ch,kind:kind};
+  if(kind==='text')rect.text=text;
+  if(!_blankActive.blanks)_blankActive.blanks={};
+  if(!_blankActive.blanks[_blankPageNum])_blankActive.blanks[_blankPageNum]=[];
+  _blankActive.blanks[_blankPageNum].push(rect);
+  saveBlankDoc();
+  renderBlankOverlays();
+}
 function setupBlankDrawEvents(){
   var overlay=document.getElementById('blankOverlay');
   if(!overlay)return;
@@ -2924,6 +2964,18 @@ function setupBlankDrawEvents(){
     if(ev.target!==overlay)return;
     ev.preventDefault();
     var p=getPos(ev);
+    if(_blankDrawType==='star'){
+      placeBlankStamp(p,'star');
+      return;
+    }
+    if(_blankDrawType==='text'){
+      var txt=prompt('입력할 텍스트를 적어주세요:');
+      if(txt===null)return;
+      txt=txt.replace(/^\s+|\s+$/g,'');
+      if(!txt)return;
+      placeBlankStamp(p,'text',txt);
+      return;
+    }
     drawing={x0:p.x,y0:p.y,x1:p.x,y1:p.y};
     updateDrawBox();
   }
@@ -2980,6 +3032,22 @@ function exportBlankPdf(){
           var list=(d.blanks&&d.blanks[pageNum])||[];
           list.forEach(function(b){
             var bx=b.x*canvas.width,by=b.y*canvas.height,bw=b.w*canvas.width,bh=b.h*canvas.height;
+            var kind=b.kind||'blank';
+            if(kind==='star'){
+              ctx.font=bh+'px sans-serif';
+              ctx.textAlign='center';
+              ctx.textBaseline='middle';
+              ctx.fillText('⭐',bx+bw/2,by+bh/2);
+              return;
+            }
+            if(kind==='text'){
+              ctx.font='bold '+(bh*0.7)+'px sans-serif';
+              ctx.fillStyle='#000000';
+              ctx.textAlign='left';
+              ctx.textBaseline='middle';
+              ctx.fillText(b.text||'',bx+2,by+bh/2);
+              return;
+            }
             var type=b.type||'box';
             ctx.fillStyle='#ffffff';
             ctx.fillRect(bx,by,bw,bh);
