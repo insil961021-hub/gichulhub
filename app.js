@@ -624,6 +624,7 @@ function renderWnItemsBlock(n){
       h+='<button type="button" onclick="insertAtCursor(\''+eid+'Text\',\'m\\u00b2\')" style="padding:2px 8px;border:1.5px solid #e2e8f0;border-radius:6px;background:#fff;font-size:11px;font-weight:700;cursor:pointer">m&#xB2;</button>';
       h+='<button type="button" onclick="insertAtCursor(\''+eid+'Text\',\'\\u00b7\')" style="padding:2px 8px;border:1.5px solid #e2e8f0;border-radius:6px;background:#fff;font-size:11px;font-weight:700;cursor:pointer">&#xB7;</button>';
       h+='<button type="button" onclick="insertAtCursor(\''+eid+'Text\',\'\\n|구분|내용|\\n|항목1|내용1|\\n\')" style="padding:2px 8px;border:1.5px solid #c7d2fe;border-radius:6px;background:#eef2ff;font-size:11px;font-weight:700;cursor:pointer;color:#4338ca">&#x1F4CA;</button>';
+      h+='<button type="button" onclick="insertAtCursor(\''+eid+'Text\',\'⭐\')" style="padding:2px 8px;border:1.5px solid #fde68a;border-radius:6px;background:#fffbeb;font-size:11px;font-weight:700;cursor:pointer">⭐</button>';
       h+='</div>';
       h+='<textarea id="'+eid+'Text" oninput="updateWnPreview(\''+eid+'Text\')" placeholder="지문/문장을 입력하세요" style="width:100%;min-height:60px;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13.5px;line-height:1.6;resize:vertical;box-sizing:border-box;font-family:inherit;margin-bottom:6px;background:#fff">'+escPlain(it.text)+'</textarea>';
       h+='<div id="'+eid+'TextPreview" style="margin-bottom:8px;padding:8px 10px;background:#fff;border:1px dashed #e2e8f0;border-radius:8px;font-size:13px;line-height:1.6;color:#1e293b">'+(it.text?renderNoteText(it.text):'<span style="color:#cbd5e1">미리보기가 여기 표시돼요</span>')+'</div>';
@@ -1059,6 +1060,7 @@ function renderWnForm(){
   h+='<button type="button" onclick="insertAtCursor(\'wnSummary\',\'→ \')" style="padding:4px 10px;border:1.5px solid #e2e8f0;border-radius:6px;background:#f8fafc;font-size:12px;font-weight:700;cursor:pointer">→ 화살표</button>';
   h+='<button type="button" onclick="toggleNoteHeader(\'wnSummary\')" style="padding:4px 10px;border:1.5px solid #bfdbfe;border-radius:6px;background:#eff6ff;font-size:12px;font-weight:700;cursor:pointer;color:#2563eb">H 헤더</button>';
   h+='<button type="button" onclick="insertAtCursor(\'wnSummary\',\'\\n|구분|내용|\\n|항목1|내용1|\\n|항목2|내용2|\\n\')" style="padding:4px 10px;border:1.5px solid #c7d2fe;border-radius:6px;background:#eef2ff;font-size:12px;font-weight:700;cursor:pointer;color:#4338ca">&#x1F4CA; 표</button>';
+  h+='<button type="button" onclick="insertAtCursor(\'wnSummary\',\'⭐\')" style="padding:4px 10px;border:1.5px solid #fde68a;border-radius:6px;background:#fffbeb;font-size:12px;font-weight:700;cursor:pointer">⭐</button>';
   h+='</div>';
   h+='<div style="font-size:11px;color:#94a3b8;margin-bottom:6px">💡 헤더는 커서가 있는 줄 전체에 적용돼요 · 표는 |내용|내용| 형태로 줄마다 채우면 돼요 (첫 줄=제목행)</div>';
   h+='<textarea id="wnSummary" oninput="updateWnPreview(\'wnSummary\');syncAndSaveWnDraft()" placeholder="지문과 별개로 자유롭게 정리해보세요. 줄바꿈해도 지문처럼 버튼으로 나뉘지 않아요" style="width:100%;min-height:140px;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;line-height:1.75;resize:vertical;box-sizing:border-box;font-family:inherit;margin-bottom:8px">'+escPlain(_wnActive.summary)+'</textarea>';
@@ -1074,6 +1076,7 @@ function renderWnForm(){
     h+='<button type="button" onclick="insertAtCursor(\'wnItemText'+i+'\',\'m\\u00b2\')" style="padding:2px 8px;border:1.5px solid #e2e8f0;border-radius:6px;background:#fff;font-size:11px;font-weight:700;cursor:pointer">m&#xB2;</button>';
     h+='<button type="button" onclick="insertAtCursor(\'wnItemText'+i+'\',\'\\u00b7\')" style="padding:2px 8px;border:1.5px solid #e2e8f0;border-radius:6px;background:#fff;font-size:11px;font-weight:700;cursor:pointer">&#xB7;</button>';
     h+='<button type="button" onclick="insertAtCursor(\'wnItemText'+i+'\',\'\\n|구분|내용|\\n|항목1|내용1|\\n\')" style="padding:2px 8px;border:1.5px solid #c7d2fe;border-radius:6px;background:#eef2ff;font-size:11px;font-weight:700;cursor:pointer;color:#4338ca">&#x1F4CA;</button>';
+    h+='<button type="button" onclick="insertAtCursor(\'wnItemText'+i+'\',\'⭐\')" style="padding:2px 8px;border:1.5px solid #fde68a;border-radius:6px;background:#fffbeb;font-size:11px;font-weight:700;cursor:pointer">⭐</button>';
     if(_wnActive.items.length>1)h+='<button type="button" onclick="removeWnItem('+i+')" style="background:none;border:none;color:#cbd5e1;cursor:pointer;font-size:14px">✕</button>';
     h+='</div></div>';
     h+='<textarea id="wnItemText'+i+'" oninput="updateWnPreview(\'wnItemText'+i+'\');syncAndSaveWnDraft()" placeholder="지문/문장을 입력하세요" style="width:100%;min-height:60px;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13.5px;line-height:1.6;resize:vertical;box-sizing:border-box;font-family:inherit;margin-bottom:6px;background:#fff">'+escPlain(it.text)+'</textarea>';
@@ -2658,6 +2661,8 @@ var _blankMode='practice';
 var _blankRevealed={};
 var _blankSignedUrl=null;
 var _blankSaveTimer=null;
+var _blankDrawType='box';
+function setBlankDrawType(t){_blankDrawType=t;renderBlankEditorShell();renderBlankPage();}
 if(typeof pdfjsLib!=='undefined'){
   pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/legacy/build/pdf.worker.min.js';
 }
@@ -2789,8 +2794,17 @@ function renderBlankEditorShell(loading){
   h+='<button class="filter-btn'+(_blankMode==='edit'?' active':'')+'" onclick="setBlankMode(\'edit\')">&#x270F;&#xFE0F; 빈칸 편집</button>';
   h+='<button id="blankExportBtn" onclick="exportBlankPdf()" style="padding:5px 14px;border-radius:20px;font-size:13px;font-weight:700;cursor:pointer;border:1.5px solid #c7d2fe;background:#eef2ff;color:#4338ca">&#x1F4C4; 빈칸 PDF로 저장</button>';
   h+='</div>';
-  if(_blankMode==='edit')h+='<div style="font-size:12px;color:#94a3b8;margin-bottom:10px">💡 가리고 싶은 부분을 드래그하면 빈칸이 생겨요. 빈칸을 다시 누르면 지워져요.</div>';
-  else h+='<div style="font-size:12px;color:#94a3b8;margin-bottom:10px">💡 빈칸을 누르면 정답이 살짝 보여요. 다시 누르면 가려져요. (인쇄용 PDF는 항상 빈칸으로 저장돼요)</div>';
+  if(_blankMode==='edit'){
+    h+='<div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-wrap:wrap">';
+    h+='<span style="font-size:12px;color:#64748b">빈칸 모양:</span>';
+    h+='<button onclick="setBlankDrawType(\'box\')" style="padding:4px 12px;border-radius:16px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid '+(_blankDrawType==='box'?'#2563eb':'#e2e8f0')+';background:'+(_blankDrawType==='box'?'#eff6ff':'#fff')+';color:'+(_blankDrawType==='box'?'#2563eb':'#64748b')+'">&#x25A2; 네모</button>';
+    h+='<button onclick="setBlankDrawType(\'white\')" style="padding:4px 12px;border-radius:16px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid '+(_blankDrawType==='white'?'#2563eb':'#e2e8f0')+';background:'+(_blankDrawType==='white'?'#eff6ff':'#fff')+';color:'+(_blankDrawType==='white'?'#2563eb':'#64748b')+'">&#x2B1C; 하얀 빈칸</button>';
+    h+='<button onclick="setBlankDrawType(\'underline\')" style="padding:4px 12px;border-radius:16px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid '+(_blankDrawType==='underline'?'#2563eb':'#e2e8f0')+';background:'+(_blankDrawType==='underline'?'#eff6ff':'#fff')+';color:'+(_blankDrawType==='underline'?'#2563eb':'#64748b')+'">&#x2015; 밑줄</button>';
+    h+='</div>';
+    h+='<div style="font-size:12px;color:#94a3b8;margin-bottom:10px">💡 가리고 싶은 부분을 드래그하면 위에서 고른 모양으로 빈칸이 생겨요. 빈칸을 다시 누르면 바로 지워져요.</div>';
+  }else{
+    h+='<div style="font-size:12px;color:#94a3b8;margin-bottom:10px">💡 빈칸을 누르면 정답이 살짝 보여요. 다시 누르면 가려져요. (인쇄용 PDF는 항상 빈칸으로 저장돼요)</div>';
+  }
   h+='<div style="display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:10px">';
   h+='<button onclick="blankPrevPage()" style="padding:6px 12px;border:1.5px solid #e2e8f0;border-radius:8px;background:#fff;cursor:pointer;font-weight:700">◀</button>';
   h+='<span style="font-size:13px;font-weight:700;color:#475569">'+_blankPageNum+' / '+(d.num_pages||'?')+'</span>';
@@ -2837,9 +2851,18 @@ function renderBlankOverlays(){
   list.forEach(function(b,idx){
     var revealed=!!_blankRevealed[_blankPageNum+'_'+idx];
     var left=(b.x*w),top=(b.y*hh),bw=(b.w*w),bh=(b.h*hh);
-    var bg=revealed?'rgba(37,99,235,0.10)':'#fff';
-    var border=revealed?'1.5px dashed #93c5fd':'2px solid #000';
-    h+='<div onclick="onBlankClick('+idx+',event)" style="position:absolute;left:'+left+'px;top:'+top+'px;width:'+bw+'px;height:'+bh+'px;background:'+bg+';border:'+border+';box-sizing:border-box;cursor:pointer"></div>';
+    var type=b.type||'box';
+    var extra='';
+    if(revealed){
+      extra='background:rgba(37,99,235,0.10);border:1.5px dashed #93c5fd';
+    }else if(type==='white'){
+      extra='background:#fff;border:none';
+    }else if(type==='underline'){
+      extra='background:#fff;border:none;border-bottom:2.5px solid #000';
+    }else{
+      extra='background:#fff;border:2px solid #000';
+    }
+    h+='<div onclick="onBlankClick('+idx+',event)" style="position:absolute;left:'+left+'px;top:'+top+'px;width:'+bw+'px;height:'+bh+'px;'+extra+';box-sizing:border-box;cursor:pointer"></div>';
   });
   overlay.innerHTML=h;
   overlay.style.width=w+'px';
@@ -2850,7 +2873,6 @@ function renderBlankOverlays(){
 function onBlankClick(idx,ev){
   if(ev)ev.stopPropagation();
   if(_blankMode==='edit'){
-    if(!confirm('이 빈칸을 삭제할까요?'))return;
     _blankActive.blanks[_blankPageNum].splice(idx,1);
     saveBlankDoc();
     renderBlankOverlays();
@@ -2923,7 +2945,7 @@ function setupBlankDrawEvents(){
     var canvas=document.getElementById('blankCanvas');
     if(!canvas)return;
     var cw=canvas.width,ch=canvas.height;
-    var rect={x:x/cw,y:y/ch,w:w/cw,h:hh/ch};
+    var rect={x:x/cw,y:y/ch,w:w/cw,h:hh/ch,type:_blankDrawType};
     if(!_blankActive.blanks)_blankActive.blanks={};
     if(!_blankActive.blanks[_blankPageNum])_blankActive.blanks[_blankPageNum]=[];
     _blankActive.blanks[_blankPageNum].push(rect);
@@ -2958,11 +2980,21 @@ function exportBlankPdf(){
           var list=(d.blanks&&d.blanks[pageNum])||[];
           list.forEach(function(b){
             var bx=b.x*canvas.width,by=b.y*canvas.height,bw=b.w*canvas.width,bh=b.h*canvas.height;
+            var type=b.type||'box';
             ctx.fillStyle='#ffffff';
             ctx.fillRect(bx,by,bw,bh);
-            ctx.lineWidth=2;
-            ctx.strokeStyle='#000000';
-            ctx.strokeRect(bx+1,by+1,bw-2,bh-2);
+            if(type==='box'){
+              ctx.lineWidth=2;
+              ctx.strokeStyle='#000000';
+              ctx.strokeRect(bx+1,by+1,bw-2,bh-2);
+            }else if(type==='underline'){
+              ctx.lineWidth=3;
+              ctx.strokeStyle='#000000';
+              ctx.beginPath();
+              ctx.moveTo(bx,by+bh-1);
+              ctx.lineTo(bx+bw,by+bh-1);
+              ctx.stroke();
+            }
           });
           var imgData=canvas.toDataURL('image/jpeg',0.92);
           return outDoc.embedJpg(imgData).then(function(img){
