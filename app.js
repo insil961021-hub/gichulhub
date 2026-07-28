@@ -1896,7 +1896,19 @@ function showMixPicker(){
   document.getElementById('main').innerHTML=h;
 }
 
+function clearMixEliminations(){
+  var keySet={};
+  _mixQuestions.forEach(function(m){keySet[getMixKey(m)]=true;});
+  Object.keys(_eliminations).forEach(function(ek){
+    var baseKey=ek.substring(0,ek.lastIndexOf('_'));
+    if(keySet[baseKey])delete _eliminations[ek];
+  });
+  saveElim();
+  if(_supa&&_user)saveUserMiscToSupa();
+}
+
 function startMix(subjName){
+  clearMixEliminations();
   _mixSubjName=subjName;
   var all=getQsForSubj(subjName);
   _mixQuestions=shuffleArr(all).slice(0,40);
@@ -1914,6 +1926,7 @@ function restartMix(){
 function retryMix(){
   if(!confirm('지금 푼 40문제를 다시 풀까요? (문제는 그대로, 답안만 초기화돼요)'))return;
   _mixCurrentQ=0;_mixAnswers={};
+  clearMixEliminations();
   saveMix();
   showMix();
 }
